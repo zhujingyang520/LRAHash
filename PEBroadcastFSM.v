@@ -80,14 +80,14 @@ always @ (*) begin
       // increment the activation register if the router can send the packet
       if (router_rdy) begin
         if (in_act_idx_reg == in_act_no) begin
-          // after finish sending all activations, send a special packet to root
-          // controller to notify the completion
-          act_send_en     = 1'b1;
-          // hardcode: MSB = 1
+          // send the special packet to the root controller that all the local
+          // activations have been broadcasted
+          state_next    = STATE_WAIT_COMP;
+          act_send_en   = 1'b1;
+          act_send_data = PE_IDX;
           act_send_addr[`ROUTER_ADDR_WIDTH-1] = 1'b1;
-          act_send_data   = PE_IDX;
-          state_next      = STATE_WAIT_COMP;
         end else begin
+          state_next    = STATE_TRAN_ACT;
           in_act_idx_next = in_act_idx_reg + 1;
           in_act_read_en  = 1'b1;
           in_act_read_addr= in_act_idx_reg;
@@ -105,6 +105,5 @@ always @ (*) begin
     end
   endcase
 end
-
 
 endmodule

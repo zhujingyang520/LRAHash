@@ -58,6 +58,9 @@ wire out_act_clear;
 // Interconnections of PE controller
 // -----------------------------------
 wire pe_start_calc;
+wire fin_broadcast;
+wire fin_comp;
+wire layer_done;
 wire [`PeLayerNoBus] layer_idx;
 
 // -----------------------------------------
@@ -123,10 +126,13 @@ NetworkInterface #(.PE_IDX(PE_IDX)) network_interface (
 
   // PE controller interface
   .pe_start_calc      (pe_start_calc),      // PE start calculation
+  .fin_broadcast      (fin_broadcast),      // finish broadcast act
   .router_rdy         (router_rdy),         // router is ready to send
+  .fin_comp           (fin_comp),           // finish computation
   .act_send_en        (act_send_en),        // act send enable
   .act_send_addr      (act_send_addr),      // act send address
   .act_send_data      (act_send_data),      // act send data
+  .layer_done         (layer_done),         // layer computation done
 
   // Activation queue interface
   .pop_act            (pop_act),            // pop activation
@@ -144,6 +150,9 @@ PEController #(
   .rst                (rst),                // system reset
 
   .pe_start_calc      (pe_start_calc),      // start calculation
+  .fin_broadcast      (fin_broadcast),      // finish broadcast act
+  .fin_comp           (fin_comp),           // finish computation
+  .layer_done         (layer_done),         // layer computation done
 
   // interfaces of PE state registers
   .layer_no           (layer_no),           // total layer no.

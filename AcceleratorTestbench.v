@@ -66,7 +66,7 @@ initial begin
   init(2);                  // reset for 2 clock cycles
   config_op("config.dat");  // write the configuration info
 
-  #(CLK_PERIOD*10000);
+  #(CLK_PERIOD*30000);
   $finish;
 end
 

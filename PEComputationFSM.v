@@ -12,6 +12,9 @@ module PEComputationFSM #(
   input wire                        clk,          // system clock
   input wire                        rst,          // system reset (active high)
   input wire                        pe_start_calc,// start calcultion
+  input wire                        fin_broadcast,// finish broadcast act
+  output reg                        fin_comp,     // finish computation
+  input wire                        layer_done,   // layer computation done
 
   // PE status interface
   input wire  [`PeLayerNoBus]       layer_no,     // total layer no.
@@ -36,7 +39,11 @@ module PEComputationFSM #(
 // FSM state definition
 // ----------------------
 localparam    STATE_IDLE            = 4'd0,       // idle state
-              STATE_W_CALC          = 4'd1;       // calculate W state
+              STATE_W_CALC_PRE_BROADCAST          // W calculation before
+                                    = 4'd1,       // broadcast
+              STATE_W_CALC_POST_BROADCAST         // W calculation after
+                                    = 4'd2,       // broadcast
+              STATE_LAYER_SYNC      = 4'd3;       // layer synchronization
 
 // FSM state register
 reg [3:0] state_reg, state_next;
@@ -70,6 +77,8 @@ always @ (*) begin
   state_next        = state_reg;
   layer_idx_next    = layer_idx_reg;
   out_act_idx_next  = out_act_idx_reg;
+  // disable finish computation
+  fin_comp          = 1'b0;
 
   // disable pop activation queue & output activation clear
   pop_act           = 1'b0;
@@ -84,8 +93,8 @@ always @ (*) begin
   case (state_reg)
     STATE_IDLE: begin
       if (pe_start_calc) begin
-        // transfer to the computation state
-        state_next  = STATE_W_CALC;
+        // next state, we go to W calculation stage
+        state_next        = STATE_W_CALC_PRE_BROADCAST;
         layer_idx_next    = 0;
         out_act_idx_next  = 0;
         out_act_clear     = 1'b1;
@@ -95,7 +104,33 @@ always @ (*) begin
       end
     end
 
-    STATE_W_CALC: begin
+    STATE_W_CALC_PRE_BROADCAST: begin
+      if (~queue_empty) begin
+        // go to the next activation index
+        out_act_idx_next  = (out_act_idx_reg == out_act_no-1) ? 0 :
+          out_act_idx_incre;
+        // computation enable
+        comp_en     = 1'b1;
+        in_act_idx  = act_out[`PE_QUEUE_WIDTH-1:`PE_DATA_WIDTH];
+        in_act_value= act_out[`PE_DATA_WIDTH-1:0];
+        out_act_idx = abs_out_act_idx;
+        out_act_addr= out_act_idx_reg;
+
+        // if all the activation finishes
+        if (out_act_idx_reg == out_act_no-1) begin
+          pop_act   = 1'b1;
+        end
+      end
+
+      // state transfer: go to post broadcast after receiving fin_broadcast
+      if (fin_broadcast) begin
+        state_next  = STATE_W_CALC_POST_BROADCAST;
+      end else begin
+        state_next  = STATE_W_CALC_PRE_BROADCAST;
+      end
+    end
+
+    STATE_W_CALC_POST_BROADCAST: begin
       if (~queue_empty) begin
         // go to the next activation index
         out_act_idx_next  = (out_act_idx_reg == out_act_no-1) ? 0 :
@@ -112,12 +147,19 @@ always @ (*) begin
           pop_act   = 1'b1;
         end
       end else begin
-        // wait for the input activation arriving
+        // all the input activations have been received and processed
+        state_next  = STATE_LAYER_SYNC;
+        fin_comp    = 1'b1;
+      end
+    end
+
+    STATE_LAYER_SYNC: begin
+      if (layer_done) begin
+        state_next  = STATE_IDLE;
       end
     end
   endcase
 end
-
 
 // -----------------------------
 // Primary output assignment

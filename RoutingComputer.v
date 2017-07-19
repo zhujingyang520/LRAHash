@@ -47,6 +47,12 @@ if (direction == `DIR_LOCAL) begin: gen_local_rc  // local port RC
       end else if (rc_en && route_info == `ROUTER_INFO_CALC) begin
         // broadcast to all 4 children
         route_port      = 5'b01111;
+      end else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
+        // broadcast to all 4 children
+        route_port      = 5'b01111;
+      end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
+        // broadcast to all 4 children
+        route_port      = 5'b01111;
       end else begin
         route_port      = 0;
       end
@@ -75,6 +81,12 @@ if (direction == `DIR_LOCAL) begin: gen_local_rc  // local port RC
         // broadcast to all 4 children
         route_port      = 5'b01111;
       end else if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
+        // broadcast to all 4 children
+        route_port      = 5'b01111;
+      end else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
+        // broadcast to all 4 children
+        route_port      = 5'b01111;
+      end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
         // broadcast to all 4 children
         route_port      = 5'b01111;
       end else begin
@@ -107,6 +119,12 @@ if (direction == `DIR_LOCAL) begin: gen_local_rc  // local port RC
       end else if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
         // broadcast to all 4 children
         route_port      = 5'b01111;
+      end else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
+        // broadcast to all 4 children
+        route_port      = 5'b01111;
+      end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
+        // broadcast to all 4 children
+        route_port      = 5'b01111;
       end else begin
         route_port      = 0;
       end
@@ -122,6 +140,9 @@ else begin: gen_nonlocal_rc
       end else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
         // finish the broadcast, send to the root controller
         route_port        = 5'b10000;
+      end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
+        // finish the computation, send to the root controller
+        route_port        = 5'b10000;
       end else begin
         route_port        = 5'b0;
       end
@@ -135,6 +156,9 @@ else begin: gen_nonlocal_rc
       end else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
         // finish the broadcast, send to the root controller
         route_port        = 5'b10000;
+      end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
+        // finish the computation, send to the root controller
+        route_port        = 5'b10000;
       end else begin
         route_port        = 5'b0;
       end
@@ -147,6 +171,9 @@ else begin: gen_nonlocal_rc
         route_port        = 5'b10000;
       end else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
         // finish the broadcast, send to the root controller
+        route_port        = 5'b10000;
+      end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
+        // finish the computation, send to the root controller
         route_port        = 5'b10000;
       end else begin
         route_port        = 5'b0;

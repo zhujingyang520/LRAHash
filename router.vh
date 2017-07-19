@@ -33,6 +33,7 @@
 `define ROUTER_INFO_CALC 4'd1     // calculation packet
 `define ROUTER_INFO_BROADCAST 4'd2// broadcast packet
 `define ROUTER_INFO_FIN_BROADCAST 4'd3  // finish broadcast
+`define ROUTER_INFO_FIN_COMP 4'd4
 // Router FIFO depth
 `define ROUTER_FIFO_DEPTH 4
 // Credit count width (log2(ROUTER_FIFO_DEPTH)+1)
