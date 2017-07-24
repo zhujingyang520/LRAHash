@@ -11,6 +11,8 @@ module RootNode (
   input wire                      clk,            // system clock
   input wire                      rst,            // system reset (active high)
 
+  output wire                     interrupt,      // interrupt
+
   // interface of the write operation
   input wire                      write_en,       // write enable (active high)
   input wire  [`DataBus]          write_data,     // write data,
@@ -23,7 +25,7 @@ module RootNode (
   input wire  [`AddrBus]          read_addr,      // read address
   input wire                      read_data_rdy,  // read data ready
   output wire                     read_data_vld,  // read data valid
-  output wire [`DataBus]          read_data,      // read data
+  output wire [`ReadDataBus]      read_data,      // read data
 
   // 4 childed directions {NW, NE, SE, SW}
   // data path
@@ -53,11 +55,21 @@ RootController root_controller (
   .clk                (clk),                      // system clock
   .rst                (rst),                      // system reset (active high)
 
+  .interrupt          (interrupt),                // interrupt for done
+
   // interfaces of write operation
   .write_en           (write_en),                 // write enable (active high)
   .write_data         (write_data),               // write data
   .write_addr         (write_addr),               // write address
   .write_rdy          (write_rdy),                // write ready
+
+  // interfaces of read operation
+  .read_en            (read_en),                  // read enable (active high)
+  .read_rdy           (read_rdy),                 // read ready (active high)
+  .read_addr          (read_addr),                // read address
+  .read_data_rdy      (read_data_rdy),            // read data ready
+  .read_data_vld      (read_data_vld),            // read data valid
+  .read_data          (read_data),                // read data bus
 
   // interfaces of LOCAL port of quadtree router
   .in_data_valid      (in_data_valid_local),      // input data valid

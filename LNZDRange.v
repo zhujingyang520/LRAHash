@@ -2,7 +2,7 @@
 // Module name: LNZDRange
 //
 // This module exports the Leading nonzero detection of the specified range:
-// [start, stop]
+// [start, stop)
 // =============================================================================
 
 module LNZDRange #(
@@ -22,14 +22,20 @@ module LNZDRange #(
 genvar g;
 
 // Mask the data input out of the specified range
-wire [BIT_WIDTH-1:0] data_in_mask;
+reg [BIT_WIDTH-1:0] data_in_mask;
 
 // -----------------
 // Mask data input
 // -----------------
 generate
 for (g = 0; g < BIT_WIDTH; g = g + 1) begin: gen_data_mask
-  assign data_in_mask[g] = (g >= start && g <= stop) ? data_in[g] : 1'b0;
+  always @ (*) begin
+    if (g >= start && g < stop) begin
+      data_in_mask[g] = data_in[g];
+    end else begin
+      data_in_mask[g] = 1'b0;
+    end
+  end
 end
 endgenerate
 

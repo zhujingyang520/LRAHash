@@ -8,9 +8,8 @@
 `include "pe.vh"
 `include "router.vh"
 
-module PEController #(
-  parameter   PE_IDX            = 0                 // PE index
-) (
+module PEController (
+  input wire  [5:0]             PE_IDX,             // PE index
   input wire                    clk,                // system clock
   input wire                    rst,                // system reset
 
@@ -26,6 +25,9 @@ module PEController #(
   input wire  [`PeActNoBus]     in_act_no,          // input activation no.
   input wire  [`PeActNoBus]     out_act_no,         // output activation no.
 
+  // interfaces of activation register file
+  output wire                   act_regfile_dir,    // act regfile direction
+
   // interfaces of network interfaces
   input wire                    router_rdy,         // router ready
   output wire                   act_send_en,        // act send enable
@@ -37,6 +39,7 @@ module PEController #(
   input wire  [`PeDataBus]      in_act_read_data,   // in act read data
   output wire                   in_act_read_en,     // in act read enable
   output wire [`PeActNoBus]     in_act_read_addr,   // in act read address
+  input wire  [`PE_ACT_NO-1:0]  in_act_zeros,       // in act zero flags
 
   // interfaces of PE activation queue
   input wire                    queue_empty,        // activation queue empty
@@ -53,13 +56,21 @@ module PEController #(
 );
 
 // ------------------------------
+// Interconnections
+// ------------------------------
+wire pe_start_broadcast;
+
+// ------------------------------
 // Two FSM controllers
 // ------------------------------
 // Computation FSM
-PEComputationFSM #(.PE_IDX(PE_IDX)) pe_computation_fsm (
+PEComputationFSM pe_computation_fsm (
+  .PE_IDX                       (PE_IDX),           // PE index
   .clk                          (clk),              // system clock
   .rst                          (rst),              // system reset
   .pe_start_calc                (pe_start_calc),    // start calcultion
+  .pe_start_broadcast           (pe_start_broadcast),
+                                                    // start broadcast
   .fin_broadcast                (fin_broadcast),    // finish broadcast act
   .fin_comp                     (fin_comp),         // finish computation
   .layer_done                   (layer_done),       // layer computation done
@@ -68,6 +79,9 @@ PEComputationFSM #(.PE_IDX(PE_IDX)) pe_computation_fsm (
   .layer_no                     (layer_no),         // total layer no.
   .out_act_no                   (out_act_no),       // output activation no.
   .layer_idx                    (layer_idx),        // current layer index
+
+  // Activation register file
+  .act_regfile_dir              (act_regfile_dir),
 
   // PE activation queue interface
   .queue_empty                  (queue_empty),      // activation queue empty
@@ -84,12 +98,14 @@ PEComputationFSM #(.PE_IDX(PE_IDX)) pe_computation_fsm (
 );
 
 // Broadcast FSM
-PEBroadcastFSM #(.PE_IDX(PE_IDX)) pe_broadcast_fsm (
+PEBroadcastFSM pe_broadcast_fsm (
+  .PE_IDX                       (PE_IDX),           // PE index
   .clk                          (clk),              // system clock
   .rst                          (rst),              // system reset
 
   .router_rdy                   (router_rdy),       // router is ready
-  .pe_start_calc                (pe_start_calc),    // start calculation
+  .pe_start_broadcast           (pe_start_broadcast),
+                                                    // start broadcast
 
   .in_act_no                    (in_act_no),        // input activation no.
 
@@ -97,6 +113,7 @@ PEBroadcastFSM #(.PE_IDX(PE_IDX)) pe_broadcast_fsm (
   .in_act_read_en               (in_act_read_en),   // input act read enable
   .in_act_read_addr             (in_act_read_addr), // read address
   .in_act_read_data             (in_act_read_data), // read data
+  .in_act_zeros                 (in_act_zeros),     // input activation zero
 
   // network interface
   .act_send_en                  (act_send_en),      // activation send enable

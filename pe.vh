@@ -8,6 +8,11 @@
 `ifndef __PE_VH__
 `define __PE_VH__
 
+// --------------------------------
+// Memory model related settings
+// --------------------------------
+`define CACTI_MEM_MODEL 1
+
 // ------------------------------------------------
 // Port width definition of the processing element
 // ------------------------------------------------

@@ -22,14 +22,14 @@ module spram_behav # (
 // -------------------
 // Main memory array
 // -------------------
-reg [MEM_WIDTH-1:0] mem [MEM_DEPTH-1:0];
+reg [MEM_WIDTH-1:0] memory [MEM_DEPTH-1:0];
 
 // ------------------
 // Read path
 // ------------------
 always @ (posedge clk) begin
   if (cen == 1'b0 && wen == 1'b1) begin
-    q <= mem[addr];
+    q <= memory[addr];
   end
 end
 
@@ -38,7 +38,7 @@ end
 // ------------------
 always @ (posedge clk) begin
   if (cen == 1'b0 && wen == 1'b0) begin
-    mem[addr] <= d;
+    memory[addr] <= d;
   end
 end
 
@@ -48,7 +48,7 @@ end
 integer j;
 initial begin
   for (j = 0; j < MEM_DEPTH; j = j + 1) begin
-    mem[j] = 1;
+    memory[j] = 1;
   end
 end
 

@@ -24,7 +24,8 @@ generate
 if (direction == `DIR_LOCAL) begin: gen_local_rc  // local port RC
   if (level == `LEVEL_ROOT) begin: gen_root_rc
     always @ (*) begin
-      if (rc_en && route_info == `ROUTER_INFO_CONFIG) begin
+      if ((rc_en && route_info == `ROUTER_INFO_CONFIG) ||
+          (rc_en && route_info == `ROUTER_INFO_READ)) begin
         // send configuration data to a specified PE
         // hardcode the root index selection
         case (route_addr[15:14])
@@ -53,14 +54,16 @@ if (direction == `DIR_LOCAL) begin: gen_local_rc  // local port RC
       end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
         // broadcast to all 4 children
         route_port      = 5'b01111;
-      end else begin
+      end
+      else begin
         route_port      = 0;
       end
     end
   end
   else if (level == `LEVEL_INTERNAL) begin: gen_internal_rc
     always @ (*) begin
-      if (rc_en && route_info == `ROUTER_INFO_CONFIG) begin
+      if ((rc_en && route_info == `ROUTER_INFO_CONFIG) ||
+          (rc_en && route_info == `ROUTER_INFO_READ)) begin
         // send the configruation data to a specified PE
         // hardcode the internal index selection
         case (route_addr[13:12])
@@ -96,7 +99,8 @@ if (direction == `DIR_LOCAL) begin: gen_local_rc  // local port RC
   end
   else if (level == `LEVEL_LEAF) begin: gen_leaf_rc
     always @ (*) begin
-      if (rc_en && route_info == `ROUTER_INFO_CONFIG) begin
+      if ((rc_en && route_info == `ROUTER_INFO_CONFIG) ||
+          (rc_en && route_info == `ROUTER_INFO_READ)) begin
         // send the configuration data to a specified PE
         // hardcode the leaf index selection
         case (route_addr[11:10])
@@ -143,6 +147,9 @@ else begin: gen_nonlocal_rc
       end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
         // finish the computation, send to the root controller
         route_port        = 5'b10000;
+      end else if (rc_en && route_info == `ROUTER_INFO_READ) begin
+        // transfer the local activation value to the ROOT level
+        route_port        = 5'b10000;
       end else begin
         route_port        = 5'b0;
       end
@@ -159,6 +166,9 @@ else begin: gen_nonlocal_rc
       end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
         // finish the computation, send to the root controller
         route_port        = 5'b10000;
+      end else if (rc_en && route_info == `ROUTER_INFO_READ) begin
+        // transfer the local activation value to the ROOT level
+        route_port        = 5'b10000;
       end else begin
         route_port        = 5'b0;
       end
@@ -174,6 +184,9 @@ else begin: gen_nonlocal_rc
         route_port        = 5'b10000;
       end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
         // finish the computation, send to the root controller
+        route_port        = 5'b10000;
+      end else if (rc_en && route_info == `ROUTER_INFO_READ) begin
+        // transfer the local activation value to the ROOT level
         route_port        = 5'b10000;
       end else begin
         route_port        = 5'b0;

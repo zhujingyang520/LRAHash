@@ -8,9 +8,8 @@
 `include "router.vh"
 `include "pe.vh"
 
-module NetworkInterface # (
-  parameter   PE_IDX              = 0                 // PE index
-) (
+module NetworkInterface (
+  input wire  [5:0]               PE_IDX,             // PE index
   input wire                      clk,                // system clock
   input wire                      rst,                // system reset
 
@@ -27,10 +26,16 @@ module NetworkInterface # (
   output reg                      pe_status_we,       // pe status write enable
   output reg  [`PeStatusAddrBus]  pe_status_addr,     // pe status write address
   output reg  [`PeStatusDataBus]  pe_status_data,     // pe status write data
+  input wire  [`PeActNoBus]       out_act_no,         // output activation no.
   // input activation configuration
   output reg                      in_act_write_en,    // input act write enable
   output reg  [`PeActNoBus]       in_act_write_addr,  // input act write address
   output reg  [`PeDataBus]        in_act_write_data,  // input act write data
+
+  // read request interface (to activation register file)
+  output reg                      ni_read_rqst,       // read request
+  output reg  [`PeActNoBus]       ni_read_addr,       // read address
+  input wire  [`PeDataBus]        out_act_read_data,  // output activation read
 
   // PE controller interface
   output reg                      pe_start_calc,      // PE start calculation
@@ -58,6 +63,66 @@ wire [`ROUTER_DATA_WIDTH-1:0] route_data = in_data[15:0];
 
 // Downstream router FIFO credit
 reg [`CREDIT_CNT_WIDTH-1:0] credit_count;
+
+
+// -------------------
+// Read request FIFO
+// -------------------
+reg read_rqst_fifo_read_en;
+reg read_rqst_fifo_write_en;
+reg [`PeActNoBus] read_rqst_fifo_write_data;
+wire [`PeActNoBus] read_rqst_fifo_read_data;
+wire read_rqst_fifo_empty_next;
+
+fifo_sync # (
+  .BIT_WIDTH        (`PE_ACT_NO_WIDTH),           // bit width
+  .FIFO_DEPTH       (`PE_QUEUE_DEPTH)             // fifo depth (power of 2)
+) read_rqst_fifo (
+  .clk              (clk),                        // system clock
+  .rst              (rst),                        // system reset
+
+  // read interface
+  .read_en          (read_rqst_fifo_read_en),     // read enable
+  .read_data        (read_rqst_fifo_read_data),   // read data
+  // write interface
+  .write_en         (read_rqst_fifo_write_en),    // write enable
+  .write_data       (read_rqst_fifo_write_data),  // write data
+
+  // status indicator of FIFO
+  .fifo_empty       (/* floating */),             // fifo is empty
+  .fifo_full        (/* floating */),             // fifo is full
+  // next logic of fifo status flag
+  .fifo_empty_next  (read_rqst_fifo_empty_next),
+  .fifo_full_next   (/* floating */)
+);
+
+// Read Request FIFO control path
+// write path
+always @ (*) begin
+  if (in_data_valid && route_info == `ROUTER_INFO_READ) begin
+    read_rqst_fifo_write_en   = 1'b1;
+    read_rqst_fifo_write_data = route_addr[`PeActNoBus];
+  end else begin
+    read_rqst_fifo_write_en   = 1'b0;
+    read_rqst_fifo_write_data = 0;
+  end
+end
+// read path
+always @ (posedge clk or posedge rst) begin
+  if (rst) begin
+    read_rqst_fifo_read_en  <= 1'b0;
+    ni_read_rqst            <= 0;
+    ni_read_addr            <= 0;
+  end else if (~read_rqst_fifo_empty_next && router_rdy) begin
+    read_rqst_fifo_read_en  <= 1'b1;
+    ni_read_rqst            <= 1'b1;
+    ni_read_addr            <= read_rqst_fifo_read_data;
+  end else begin
+    read_rqst_fifo_read_en  <= 1'b0;
+    ni_read_rqst            <= 0;
+    ni_read_addr            <= 0;
+  end
+end
 
 // ---------------------------------------------
 // configuration interface: pe status register
@@ -163,6 +228,9 @@ always @ (posedge clk or posedge rst) begin
   end else if (in_data_valid && route_info == `ROUTER_INFO_CONFIG) begin
     // release 1 credit asap when configuration
     upstream_credit   <= 1'b1;
+  end else if (read_rqst_fifo_read_en) begin
+    // release 1 credit asap the read request FIFO has been issued
+    upstream_credit   <= 1'b1;
   end else if (in_data_valid && route_info == `ROUTER_INFO_CALC) begin
     // release 1 credit asap when start calculation
     upstream_credit   <= 1'b1;
@@ -171,6 +239,10 @@ always @ (posedge clk or posedge rst) begin
     upstream_credit   <= 1'b1;
   end else if (in_data_valid && route_info == `ROUTER_INFO_FIN_COMP) begin
     // release 1 credit asap for finishing computation
+    upstream_credit   <= 1'b1;
+  end else if (in_data_valid && route_info == `ROUTER_INFO_BROADCAST &&
+    out_act_no == 0) begin
+    // release 1 credit asap when no computation is allocated for the current PE
     upstream_credit   <= 1'b1;
   end else if (pop_act) begin
     // release 1 credit iff the downstreaming activation queue is popped
@@ -196,7 +268,8 @@ end
 // Activation queue
 // ----------------------
 always @ (*) begin
-  if (in_data_valid && route_info == `ROUTER_INFO_BROADCAST) begin
+  if (in_data_valid && route_info == `ROUTER_INFO_BROADCAST &&
+      out_act_no > 0) begin
     push_act          = 1'b1;
     act               = {route_addr[`PE_ADDR_WIDTH-1:0], route_data};
   end else begin
@@ -229,11 +302,18 @@ end
 // ------------------------
 // Downstream credit count
 // ------------------------
+// 3 cases for sending downstreaming a packet
+// a) act_send_en: broadcast the local non-zero input activation & finish
+//    broadcast
+// b) fin_comp: send the finish computation
+// c) read_rqst_fifo_read_en: send the local output activations to primary
+//    output
+wire credit_decre = act_send_en | fin_comp | read_rqst_fifo_read_en;
 always @ (posedge clk or posedge rst) begin
   if (rst) begin
     credit_count      <= `ROUTER_FIFO_DEPTH;
   end else begin
-    case ({downstream_credit, act_send_en | fin_comp})
+    case ({downstream_credit, credit_decre})
       2'b01: begin
         credit_count  <= credit_count - 1;
       end
@@ -270,11 +350,17 @@ always @ (posedge clk or posedge rst) begin
     out_data_valid    <= 1'b1;
     out_data[35:32]   <= `ROUTER_INFO_FIN_COMP;
     out_data[31:16]   <= 0;
-    out_data[15:0]    <= PE_IDX;
+    out_data[15:0]    <= {10'b0, PE_IDX};
 
     // synopsys translate_off
     $display("@%t PE[%d] FIN COMP", $time, PE_IDX);
     // synopsys translate_on
+  end else if (read_rqst_fifo_read_en) begin
+    // send a read request result
+    out_data_valid    <= 1'b1;
+    out_data[35:32]   <= `ROUTER_INFO_READ;
+    out_data[31:16]   <= {4'b0, read_rqst_fifo_read_data, PE_IDX};
+    out_data[15:0]    <= out_act_read_data;
   end else begin
     out_data_valid    <= 1'b0;
     out_data          <= 0;

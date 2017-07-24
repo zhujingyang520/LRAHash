@@ -8,9 +8,8 @@
 
 `include "pe.vh"
 
-module ActRegFile #(
-  parameter   PE_IDX            = 0                 // PE index
-) (
+module ActRegFile (
+  input wire  [5:0]             PE_IDX,             // PE index
   input wire                    clk,                // system clock
   input wire                    dir,                // direction of in/out
   // input activations

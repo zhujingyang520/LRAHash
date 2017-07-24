@@ -7,14 +7,14 @@
 `include "pe.vh"
 `include "router.vh"
 
-module PEBroadcastFSM #(
-  parameter   PE_IDX                = 0               // PE index
-) (
+module PEBroadcastFSM (
+  input wire  [5:0]                 PE_IDX,           // PE index
   input wire                        clk,              // system clock
   input wire                        rst,              // system reset
 
   input wire                        router_rdy,       // router is ready
-  input wire                        pe_start_calc,    // start calculation
+  input wire                        pe_start_broadcast,
+                                                      // start broadcast
 
   input wire  [`PeActNoBus]         in_act_no,        // input activation no.
 
@@ -22,6 +22,7 @@ module PEBroadcastFSM #(
   output reg                        in_act_read_en,   // input act read enable
   output reg  [`PeActNoBus]         in_act_read_addr, // read address
   input wire  [`PeDataBus]          in_act_read_data, // read data
+  input wire  [`PE_ACT_NO-1:0]      in_act_zeros,     // input activation zero
 
   // network interface
   output reg                        act_send_en,      // activation send enable
@@ -33,13 +34,21 @@ module PEBroadcastFSM #(
 // ----------------------
 // FSM states definition
 // ----------------------
-localparam    STATE_IDLE            = 4'd0,           // idle state
-              STATE_TRAN_ACT        = 4'd1,           // transfer activation
-              STATE_WAIT_COMP       = 4'd2;           // wait for computation
+localparam    STATE_IDLE            = 1'd0,           // idle state
+              STATE_TRAN_ACT        = 1'd1;           // transfer activation
 
 // Registers
-reg [3:0] state_reg, state_next;
-reg [`PeActNoBus] in_act_idx_reg, in_act_idx_next;    // in activation index
+reg state_reg, state_next;
+reg [`PeActNoBus] lnzd_start;                         // lnzd start index
+
+// -----------------------------------
+// Leading nonzero detection outputs
+// -----------------------------------
+wire [`PeActNoBus] lnzd_position;
+wire lnzd_valid;
+// registers to reduce the critical path
+reg [`PeActNoBus] lnzd_position_reg;
+reg lnzd_valid_reg;
 
 // ---------------------
 // FSM state registers
@@ -47,10 +56,8 @@ reg [`PeActNoBus] in_act_idx_reg, in_act_idx_next;    // in activation index
 always @ (posedge clk or posedge rst) begin
   if (rst) begin
     state_reg       <= STATE_IDLE;
-    in_act_idx_reg  <= 0;
   end else begin
     state_reg       <= state_next;
-    in_act_idx_reg  <= in_act_idx_next;
   end
 end
 
@@ -60,50 +67,72 @@ end
 always @ (*) begin
   // keep the original value by default
   state_next        = state_reg;
-  in_act_idx_next   = in_act_idx_reg;
   in_act_read_en    = 1'b0;
   in_act_read_addr  = 0;
   // activation to send
   act_send_en       = 1'b0;
   act_send_data     = 0;
   act_send_addr     = 0;
+  // lnzd start index keep @ original lnzd_position_reg
+  lnzd_start        = lnzd_position_reg;
 
   case (state_reg)
     STATE_IDLE: begin
-      if (pe_start_calc) begin
-        state_next      = STATE_TRAN_ACT;
-        in_act_idx_next = 0;
+      if (pe_start_broadcast) begin
+        state_next  = STATE_TRAN_ACT;
+        lnzd_start  = 0;
       end
     end
 
     STATE_TRAN_ACT: begin
       // increment the activation register if the router can send the packet
       if (router_rdy) begin
-        if (in_act_idx_reg == in_act_no) begin
+        if (lnzd_valid_reg == 1'b0) begin
           // send the special packet to the root controller that all the local
-          // activations have been broadcasted
-          state_next    = STATE_WAIT_COMP;
-          act_send_en   = 1'b1;
-          act_send_data = PE_IDX;
+          // activations have been broadcasted and returned to IDLE state
+          state_next      = STATE_IDLE;
+          act_send_en     = 1'b1;
+          act_send_data   = {10'b0, PE_IDX};
           act_send_addr[`ROUTER_ADDR_WIDTH-1] = 1'b1;
         end else begin
-          state_next    = STATE_TRAN_ACT;
-          in_act_idx_next = in_act_idx_reg + 1;
+          state_next      = STATE_TRAN_ACT;
           in_act_read_en  = 1'b1;
-          in_act_read_addr= in_act_idx_reg;
+          in_act_read_addr= lnzd_position_reg;
           // send the input activation
           act_send_en     = 1'b1;
           act_send_data   = in_act_read_data;
           // address is left shift by 6 bits and plus the index
-          act_send_addr   = PE_IDX + {in_act_idx_reg, 6'b000_000};
+          act_send_addr   = {4'd0, lnzd_position_reg, PE_IDX};
+          // increment to the next start index
+          lnzd_start      = lnzd_position_reg + 1;
         end
       end
     end
-
-    STATE_WAIT_COMP: begin
-      // TODO
-    end
   endcase
+end
+
+// --------------------------------------------
+// Input activation leading nonzero detection
+// --------------------------------------------
+LNZDRange #(
+  .BIT_WIDTH          (`PE_ACT_NO)              // bit width (power of 2)
+) lnzd_range (
+  .data_in            (in_act_zeros),           // input data to be detected
+  .start              (lnzd_start),             // start range
+  .stop               (in_act_no),              // stop range
+
+  .position           (lnzd_position),          // nonzero position within range
+  .valid              (lnzd_valid)              // valid for nonzero element
+);
+// pipeline the LNZD results
+always @ (posedge clk or posedge rst) begin
+  if (rst) begin
+    lnzd_valid_reg    <= 1'b0;
+    lnzd_position_reg <= 0;
+  end else if (router_rdy) begin
+    lnzd_valid_reg    <= lnzd_valid;
+    lnzd_position_reg <= lnzd_position;
+  end
 end
 
 endmodule

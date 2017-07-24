@@ -11,6 +11,9 @@ module Accelerator (
   input wire                      clk,          // system clock
   input wire                      rst,          // system reset (active high)
 
+  // interrupt of the computation done notification
+  output wire                     interrupt,    // interrupt
+
   // interface of write operation (configuration)
   input wire                      write_en,     // write enable (active high)
   output wire                     write_rdy,    // write ready (active high)
@@ -23,7 +26,7 @@ module Accelerator (
   input wire  [`AddrBus]          read_addr,    // read address
   input wire                      read_data_rdy,// read data ready (active high)
   output wire                     read_data_vld,// read data valid (active high)
-  output wire [`DataBus]          read_data     // read data
+  output wire [`ReadDataBus]      read_data     // read data
 );
 
 genvar g;
@@ -60,6 +63,8 @@ wire [`DIRECTION-2:0] leaf_node_upstream_credit [15:0];
 RootNode root_node (
   .clk                    (clk),            // system clock
   .rst                    (rst),            // system reset (active high)
+
+  .interrupt              (interrupt),      // interrupt
 
   // interface of the write operation
   .write_en               (write_en),       // write enable (active high)
@@ -143,9 +148,8 @@ endgenerate
 // ---------------------------------
 generate
 for (g = 0; g < 64; g = g + 1) begin: gen_processing_element
-ProcessingElement #(
-  .PE_IDX                 (g)               // PE index
-) processing_element (
+ProcessingElement processing_element (
+  .PE_IDX                 (g[5:0]),         // PE index
   .clk                    (clk),            // system clock
   .rst                    (rst),            // syetem reset (active high)
 

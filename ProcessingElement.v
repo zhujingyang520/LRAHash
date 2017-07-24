@@ -8,9 +8,8 @@
 `include "pe.vh"
 `include "router.vh"
 
-module ProcessingElement #(
-  parameter   PE_IDX              = 0             // PE index
-) (
+module ProcessingElement (
+  input wire  [5:0]               PE_IDX,         // PE index
   input wire                      clk,            // system clock
   input wire                      rst,            // syetem reset (active high)
 
@@ -28,6 +27,8 @@ module ProcessingElement #(
 // ----------------------------------------
 // Interconnections of network interfaces
 // ----------------------------------------
+wire ni_read_rqst;
+wire [`PeActNoBus] ni_read_addr;
 wire router_rdy;
 wire act_send_en;
 wire [`ROUTER_ADDR_WIDTH-1:0] act_send_addr;
@@ -46,13 +47,18 @@ wire [`PeActNoBus] out_act_no;
 // ----------------------------------------------
 // Interconnections of activation register files
 // ----------------------------------------------
+wire act_regfile_dir;
 wire in_act_write_en;
 wire [`PeActNoBus] in_act_write_addr;
 wire [`PeDataBus] in_act_write_data;
+wire [`PE_ACT_NO-1:0] in_act_zeros;
 wire in_act_read_en;
 wire [`PeActNoBus] in_act_read_addr;
 wire [`PeDataBus] in_act_read_data;
 wire out_act_clear;
+wire out_act_read_en;
+wire [`PeActNoBus] out_act_read_addr;
+wire [`PeDataBus] out_act_read_data;
 
 // -----------------------------------
 // Interconnections of PE controller
@@ -75,7 +81,7 @@ wire queue_empty;
 // -----------------------------------------
 // Interconnections of computation datapath
 // -----------------------------------------
-// Stage 1: hash address computation
+// Stage 1: memory address computation
 wire comp_en;
 wire [`PeAddrBus] in_act_idx;
 wire [`PeAddrBus] out_act_idx;
@@ -88,21 +94,25 @@ wire [`PeActNoBus] out_act_addr_mem;
 wire w_mem_cen;
 wire w_mem_wen;
 wire [`WMemAddrBus] w_mem_addr;
-// Stage 3: multiply-accumulation (MAC)
-wire comp_en_mac;
-wire [`PeDataBus] in_act_value_mac;
-wire [`PeDataBus] w_value_mac;
-wire [`PeActNoBus] out_act_addr_mac;
-wire [`PeDataBus] out_act_value_mac;
-// Stage 4: output activation write back (WB)
+// Stage 3: multiplication (MULT)
+wire comp_en_mult;
+wire [`PeDataBus] in_act_value_mult;
+wire [`PeDataBus] w_value_mult;
+wire [`PeActNoBus] out_act_addr_mult;
+// Stage 4: addition (ADD)
+wire comp_en_add;
+wire [`PeDataBus] mult_result_add;
+wire [`PeActNoBus] out_act_addr_add;
+// Stage 5: output activation write back (WB)
 wire comp_en_wb;
 wire [`PeActNoBus] out_act_addr_wb;
-wire [`PeDataBus] mac_result_wb;
+wire [`PeDataBus] add_result_wb;
 
 // -------------------
 // Network interface
 // -------------------
-NetworkInterface #(.PE_IDX(PE_IDX)) network_interface (
+NetworkInterface network_interface (
+  .PE_IDX             (PE_IDX),             // PE index
   .clk                (clk),                // system clock
   .rst                (rst),                // system reset (active high)
 
@@ -119,10 +129,16 @@ NetworkInterface #(.PE_IDX(PE_IDX)) network_interface (
   .pe_status_we       (pe_status_we),       // pe status write enable
   .pe_status_addr     (pe_status_addr),     // pe status write address
   .pe_status_data     (pe_status_data),     // pe status write data
+  .out_act_no         (out_act_no),         // output activation no.
   // input activation configuration
   .in_act_write_en    (in_act_write_en),    // input act write enable
   .in_act_write_addr  (in_act_write_addr),  // input act write address
   .in_act_write_data  (in_act_write_data),  // input act write data
+
+  // read request interface (to activation register file)
+  .ni_read_rqst       (ni_read_rqst),       // read request
+  .ni_read_addr       (ni_read_addr),       // read address
+  .out_act_read_data  (out_act_read_data),  // output activation read
 
   // PE controller interface
   .pe_start_calc      (pe_start_calc),      // PE start calculation
@@ -143,9 +159,8 @@ NetworkInterface #(.PE_IDX(PE_IDX)) network_interface (
 // ---------------
 // PE controller
 // ---------------
-PEController #(
-  .PE_IDX             (PE_IDX)              // PE index
-) pe_controller (
+PEController pe_controller (
+  .PE_IDX             (PE_IDX),             // PE index
   .clk                (clk),                // system clock
   .rst                (rst),                // system reset
 
@@ -160,6 +175,9 @@ PEController #(
   .in_act_no          (in_act_no),          // input activation no.
   .out_act_no         (out_act_no),         // output activation no.
 
+  // interfaces of activation register file
+  .act_regfile_dir    (act_regfile_dir),    // act regfile direction
+
   // interfaces of network interfaces
   .router_rdy         (router_rdy),         // router ready
   .act_send_en        (act_send_en),        // act send enable
@@ -170,7 +188,7 @@ PEController #(
   .in_act_read_data   (in_act_read_data),   // in act read data
   .in_act_read_en     (in_act_read_en),     // in act read enable
   .in_act_read_addr   (in_act_read_addr),   // in act read address
-
+  .in_act_zeros       (in_act_zeros),       // in act zero flags
 
   // interfaces of PE activation queue
   .queue_empty        (queue_empty),        // activation queue empty
@@ -189,7 +207,8 @@ PEController #(
 // --------------------
 // PE status registers
 // --------------------
-PEStateReg #(.PE_IDX(PE_IDX)) pe_state_reg (
+PEStateReg pe_state_reg (
+  .PE_IDX             (PE_IDX),             // PE index
   .clk                (clk),                // system clock
   .rst                (rst),                // system reset (active high)
 
@@ -225,14 +244,15 @@ PEActQueue pe_act_queue (
 );
 
 // ----------------------------------------
-// Computation datapath: 3 pipeline stages
+// Computation datapath: 5 pipeline stages
 // ----------------------------------------
-// Stage 1: Hash Engine for address computation
-HashEngine #(.PE_IDX(PE_IDX)) hash_engine (
+// Stage 1: on-chip SRAM address computation
+MemAddrComp mem_addr_comp (
+  .PE_IDX             (PE_IDX),             // PE index
   .clk                (clk),                // system clock
   .rst                (rst),                // system reset (active high)
 
-  // Input datapath
+  // Input datapath & control path
   .comp_en            (comp_en),            // computation enable
   .layer_idx          (layer_idx),          // layer index
   .in_act_idx         (in_act_idx),         // input activation index
@@ -240,7 +260,7 @@ HashEngine #(.PE_IDX(PE_IDX)) hash_engine (
   .out_act_addr       (out_act_addr),       // output activation address
   .in_act_value       (in_act_value),       // input activation value
 
-  // Output datapath (memory stage)
+  // Output datapath & control path (memory stage)
   .comp_en_mem        (comp_en_mem),        // computation enable
   .in_act_value_mem   (in_act_value_mem),   // input activation value
   .out_act_addr_mem   (out_act_addr_mem),   // output activation address
@@ -255,7 +275,7 @@ MemAccess mem_access (
   .clk                (clk),                // system clock
   .rst                (rst),                // system reset
 
-  // Input datapath (memory stage)
+  // Input datapath & control path (memory stage)
   .comp_en_mem        (comp_en_mem),        // computation enable (mem)
   .in_act_value_mem   (in_act_value_mem),   // input activation value (mem)
   .out_act_addr_mem   (out_act_addr_mem),   // output activation address
@@ -263,37 +283,54 @@ MemAccess mem_access (
   .w_mem_wen          (w_mem_wen),          // weight memory write enable
   .w_mem_addr         (w_mem_addr),         // weight memory address
 
-  // output datapath (mac stage)
-  .comp_en_mac        (comp_en_mac),        // computation enable (mac)
-  .in_act_value_mac   (in_act_value_mac),   // input activation value (mac)
-  .w_value_mac        (w_value_mac),        // weight value
-  .out_act_addr_mac   (out_act_addr_mac)    // output activation address
+  // Output datapath & control path (mult stage)
+  .comp_en_mult       (comp_en_mult),       // computation enable (mult)
+  .in_act_value_mult  (in_act_value_mult),  // input activation value (mult)
+  .w_value_mult       (w_value_mult),       // weight value
+  .out_act_addr_mult  (out_act_addr_mult)   // output activation address
 );
-// Stage 3: MAC operation
-MAC mac (
+// Stage 3: activation & weights multiplication (MULT)
+Mult mult (
   .clk                (clk),                // system clock
-  .rst                (rst),                // system reset
+  .rst                (rst),                // system reset (active high)
 
-  // Input datapath (mac stage)
-  .comp_en_mac        (comp_en_mac),        // computation enable (mac)
-  .in_act_value_mac   (in_act_value_mac),   // input activation value (mac)
-  .w_value_mac        (w_value_mac),        // weight value (mac)
-  .out_act_addr_mac   (out_act_addr_mac),   // output activation address(mac)
-  .out_act_value_mac  (out_act_value_mac),  // output activation value (mac)
+  // Input datapath & control path (mult stage)
+  .comp_en_mult       (comp_en_mult),       // computation enable
+  .in_act_value_mult  (in_act_value_mult),  // input activation value
+  .w_value_mult       (w_value_mult),       // weight value
+  .out_act_addr_mult  (out_act_addr_mult),  // output activation address
 
-  // Output datapath (wb stage)
-  .comp_en_wb         (comp_en_wb),         // computation enable (wb)
-  .out_act_addr_wb    (out_act_addr_wb),    // output activation address(wb)
-  .mac_result_wb      (mac_result_wb)       // mac result (wb)
+  // Output datapath & control path (add stage)
+  .comp_en_add        (comp_en_add),        // computation enable
+  .out_act_addr_add   (out_act_addr_add),   // output activation address
+  .mult_result_add    (mult_result_add)     // multiplication result
+);
+// Stage 4: activation accumulation (ADD)
+Add add (
+  .clk                (clk),                // system clock
+  .rst                (rst),                // system reset (active high)
+
+  // Input datapath & control path (add stage)
+  .comp_en_add        (comp_en_add),        // computation enable
+  .out_act_value_add  (out_act_read_data),  // output activation value
+  .mult_result_add    (mult_result_add),    // multiplication result
+  .out_act_addr_add   (out_act_addr_add),   // output activation address
+
+  // Output datapath & control path (wb stage)
+  .comp_en_wb         (comp_en_wb),         // computation enable
+  .out_act_addr_wb    (out_act_addr_wb),    // output activation address
+  .add_result_wb      (add_result_wb)       // addition result
 );
 
+// Stage 5: Write back (wb)
 // ----------------------------
 // Activation register files
 // ----------------------------
 // TODO: finish connections
-ActRegFile #(.PE_IDX(PE_IDX)) act_reg_file (
+ActRegFile act_reg_file (
+  .PE_IDX             (PE_IDX),             // PE index
   .clk                (clk),                // system clock
-  .dir                (`ACT_DIR_0),         // direction of in/out
+  .dir                (act_regfile_dir),    // direction of in/out
   // input activations
   .in_act_clear       (1'b0),               // input activation clear
   .in_act_read_en     (in_act_read_en),     // read enable
@@ -302,15 +339,25 @@ ActRegFile #(.PE_IDX(PE_IDX)) act_reg_file (
   .in_act_write_en    (in_act_write_en),    // write enable
   .in_act_write_addr  (in_act_write_addr),  // write address
   .in_act_write_data  (in_act_write_data),  // write data
-  .in_act_zeros       (),                   // zero flags
+  .in_act_zeros       (in_act_zeros),       // zero flags
   // output activations
   .out_act_clear      (out_act_clear),      // output activation clear
-  .out_act_read_en    (comp_en_mac),        // read enable
-  .out_act_read_addr  (out_act_addr_mac),   // read address
-  .out_act_read_data  (out_act_value_mac),  // read data
+  .out_act_read_en    (out_act_read_en),    // read enable
+  .out_act_read_addr  (out_act_read_addr),  // read address
+  .out_act_read_data  (out_act_read_data),  // read data
   .out_act_write_en   (comp_en_wb),         // write enable
   .out_act_write_addr (out_act_addr_wb),    // write address
-  .out_act_write_data (mac_result_wb)       // write data
+  .out_act_write_data (add_result_wb)       // write data
+);
+// Activation Read Mux Logic
+ActRegFileOutMux act_reg_file_out_mux (
+  .comp_en_add        (comp_en_add),        // computation enable (ADD)
+  .out_act_addr_add   (out_act_addr_add),   // output activation address
+  .ni_read_rqst       (ni_read_rqst),       // network interface read rqst
+  .ni_read_addr       (ni_read_addr),       // network interface read addr
+
+  .out_act_read_en    (out_act_read_en),    // output act read enable
+  .out_act_read_addr  (out_act_read_addr)   // output act read address
 );
 
 endmodule

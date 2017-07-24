@@ -14,5 +14,8 @@
 `define DataBus `DATA_WIDTH-1:0
 `define ADDR_WIDTH 16             // Bit width of the system address bus
 `define AddrBus `ADDR_WIDTH-1:0
+// Bit width of the system read data bus
+`define READ_DATA_WIDTH `DATA_WIDTH+12
+`define ReadDataBus `READ_DATA_WIDTH-1:0
 
 `endif

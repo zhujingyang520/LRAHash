@@ -32,9 +32,10 @@ genvar g;
 // 2D array of the register array
 reg [BIT_WIDTH-1:0] reg_array [REG_DEPTH-1:0];
 
-
+// ------------------------------------------------------------------
+// write operation (@ rising edge, need to resolve the data hazard)
+// ------------------------------------------------------------------
 integer j;
-// write operation
 always @ (posedge clk) begin
   if (clear) begin
     for (j = 0; j < REG_DEPTH; j = j + 1) begin
@@ -45,11 +46,13 @@ always @ (posedge clk) begin
   end
 end
 
-// read operation
+// ------------------------------------------------------
+// read operation (combinational read)
+// With data forwarding to resolve the data hazard (RAW)
+// ------------------------------------------------------
 always @ (*) begin
   if (read_en) begin
-    if (write_en && write_addr == read_addr) begin
-      // bypass the write operation
+    if (write_en && read_addr == write_addr) begin
       read_data   = write_data;
     end else begin
       read_data   = reg_array[read_addr];
@@ -62,7 +65,7 @@ end
 // zero flags
 generate
 for (g = 0; g < REG_DEPTH; g = g + 1) begin: gen_zeros
-  assign zeros[g] = (reg_array[g] == {BIT_WIDTH{1'b0}}) ? 1'b1 : 1'b0;
+  assign zeros[g] = (reg_array[g] == {BIT_WIDTH{1'b0}}) ? 1'b0 : 1'b1;
 end
 endgenerate
 

@@ -12,22 +12,21 @@
 
 `include "pe.vh"
 
-module PEStateReg #(
-  parameter   PE_IDX              = 0         // PE index
-) (
-  input wire                      clk,        // system clock
-  input wire                      rst,        // system reset (active high)
+module PEStateReg (
+  input wire  [5:0]               PE_IDX,       // PE index
+  input wire                      clk,          // system clock
+  input wire                      rst,          // system reset (active high)
 
   // configure data path
-  input wire                      write_en,   // write enable (active high)
-  input wire  [`PeStatusAddrBus]  write_addr, // write address
-  input wire  [`PeStatusDataBus]  write_data, // write data
+  input wire                      write_en,     // write enable (active high)
+  input wire  [`PeStatusAddrBus]  write_addr,   // write address
+  input wire  [`PeStatusDataBus]  write_data,   // write data
 
   // output DNN related parameters
-  input wire  [`PeLayerNoBus]     layer_idx,  // layer index
-  output wire [`PeLayerNoBus]     layer_no,   // layer number
-  output wire [`PeActNoBus]       in_act_no,  // input activation no.
-  output wire [`PeActNoBus]       out_act_no  // output activation no.
+  input wire  [`PeLayerNoBus]     layer_idx,    // layer index
+  output wire [`PeLayerNoBus]     layer_no,     // layer number
+  output wire [`PeActNoBus]       in_act_no,    // input activation no.
+  output wire [`PeActNoBus]       out_act_no    // output activation no.
   //output wire [`PeActNoBus]     act_no,   // activation number
   //output wire [`PeRealWNoBus]   real_w_no // real weight number
 );
@@ -56,7 +55,7 @@ always @ (posedge clk or posedge rst) begin
     end
   end else if (write_en) begin
     case (write_addr)
-      `PE_STATUS_DATA_WIDTH'd0: begin     // [0]: layer no.
+      `PE_STATUS_ADDR_WIDTH'd0: begin     // [0]: layer no.
         layer_no_reg  <= write_data[2:0];
         // synopsys translate_off
         $display("@%t CONFIG PE[%d]: layer no. = %d", $time, PE_IDX,
@@ -64,7 +63,7 @@ always @ (posedge clk or posedge rst) begin
         // synopsys translate_on
       end
 
-      `PE_STATUS_DATA_WIDTH'd2: begin     // [2]: {act_no[1], act_no[0]}
+      `PE_STATUS_ADDR_WIDTH'd2: begin     // [2]: {act_no[1], act_no[0]}
         act_no_reg[1] <= write_data[13:8];
         act_no_reg[0] <= write_data[5:0];
         // synopsys translate_off
@@ -73,7 +72,7 @@ always @ (posedge clk or posedge rst) begin
         // synopsys translate_on
       end
 
-      `PE_STATUS_DATA_WIDTH'd4: begin     // [4]: {act_no[3], act_no[2]}
+      `PE_STATUS_ADDR_WIDTH'd4: begin     // [4]: {act_no[3], act_no[2]}
         act_no_reg[3] <= write_data[13:8];
         act_no_reg[2] <= write_data[5:0];
         // synopsys translate_off
@@ -82,7 +81,7 @@ always @ (posedge clk or posedge rst) begin
         // synopsys translate_on
       end
 
-      `PE_STATUS_DATA_WIDTH'd6: begin     // [6]: {act_no[5], act_no[4]}
+      `PE_STATUS_ADDR_WIDTH'd6: begin     // [6]: {act_no[5], act_no[4]}
         act_no_reg[5] <= write_data[13:8];
         act_no_reg[4] <= write_data[5:0];
         // synopsys translate_off
@@ -91,13 +90,17 @@ always @ (posedge clk or posedge rst) begin
         // synopsys translate_on
       end
 
-      `PE_STATUS_DATA_WIDTH'd8: begin     // [8]: {act_no[7], act_no[6]}
+      `PE_STATUS_ADDR_WIDTH'd8: begin     // [8]: {act_no[7], act_no[6]}
         act_no_reg[7] <= write_data[13:8];
         act_no_reg[6] <= write_data[5:0];
         // synopsys translate_off
         $display("@%t CONFIG PE[%d]: act no.[7] = %d; act no.[6] = %d",
           $time, PE_IDX, write_data[13:8], write_data[5:0]);
         // synopsys translate_on
+      end
+
+      default: begin
+        /* Keep the original value */
       end
     endcase
   end
