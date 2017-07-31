@@ -64,9 +64,9 @@ wire [`PeDataBus] out_act_read_data;
 // Interconnections of PE controller
 // -----------------------------------
 wire pe_start_calc;
-wire fin_broadcast;
 wire fin_comp;
-wire layer_done;
+wire broadcast_done;
+wire comp_done;
 wire [`PeLayerNoBus] layer_idx;
 
 // -----------------------------------------
@@ -126,29 +126,29 @@ NetworkInterface network_interface (
 
   // configuration interfaces
   // pe status registers
+  .out_act_no         (out_act_no),         // output activation no.
   .pe_status_we       (pe_status_we),       // pe status write enable
   .pe_status_addr     (pe_status_addr),     // pe status write address
   .pe_status_data     (pe_status_data),     // pe status write data
-  .out_act_no         (out_act_no),         // output activation no.
   // input activation configuration
   .in_act_write_en    (in_act_write_en),    // input act write enable
   .in_act_write_addr  (in_act_write_addr),  // input act write address
   .in_act_write_data  (in_act_write_data),  // input act write data
 
   // read request interface (to activation register file)
+  .out_act_read_data  (out_act_read_data),  // output activation read
   .ni_read_rqst       (ni_read_rqst),       // read request
   .ni_read_addr       (ni_read_addr),       // read address
-  .out_act_read_data  (out_act_read_data),  // output activation read
 
   // PE controller interface
-  .pe_start_calc      (pe_start_calc),      // PE start calculation
-  .fin_broadcast      (fin_broadcast),      // finish broadcast act
-  .router_rdy         (router_rdy),         // router is ready to send
-  .fin_comp           (fin_comp),           // finish computation
   .act_send_en        (act_send_en),        // act send enable
   .act_send_addr      (act_send_addr),      // act send address
   .act_send_data      (act_send_data),      // act send data
-  .layer_done         (layer_done),         // layer computation done
+  .fin_comp           (fin_comp),           // finish computation
+  .pe_start_calc      (pe_start_calc),      // PE start calculation
+  .broadcast_done     (broadcast_done),     // broadcast act done
+  .router_rdy         (router_rdy),         // router is ready to send
+  .comp_done          (comp_done),          // layer computation done
 
   // Activation queue interface
   .pop_act            (pop_act),            // pop activation
@@ -165,9 +165,9 @@ PEController pe_controller (
   .rst                (rst),                // system reset
 
   .pe_start_calc      (pe_start_calc),      // start calculation
-  .fin_broadcast      (fin_broadcast),      // finish broadcast act
+  .broadcast_done     (broadcast_done),     // finish broadcast act
+  .comp_done          (comp_done),          // layer computation done
   .fin_comp           (fin_comp),           // finish computation
-  .layer_done         (layer_done),         // layer computation done
 
   // interfaces of PE state registers
   .layer_no           (layer_no),           // total layer no.

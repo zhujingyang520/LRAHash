@@ -92,9 +92,9 @@ endgenerate
 generate
 for (g = 0; g < `DIRECTION; g = g + 1) begin: gen_rc
 RoutingComputer #(
-  .level            (level),                      // level of the router
-  .direction        (g)                           // direction of the RC
+  .level            (level)                       // level of the router
 ) rc (
+  .direction        (g[2:0]),                     // input direction
   .rc_en            (rc_en[g]),                   // routing enable
   .route_info       (route_info[g]),              // routing info
   .route_addr       (route_addr[g]),              // routing address

@@ -22,6 +22,7 @@
 `define DIR_SW          3
 `define DIR_LOCAL       4
 `define DIR_NIL         5
+`define DIR_WDITH       3
 // Routing packet
 `define ROUTER_INFO_WIDTH 4
 `define ROUTER_ADDR_WIDTH 16

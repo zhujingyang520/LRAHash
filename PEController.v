@@ -15,8 +15,8 @@ module PEController (
 
   // interfaces of network interface
   input wire                    pe_start_calc,      // start calculation
-  input wire                    layer_done,         // layer computation done
-  input wire                    fin_broadcast,      // finish broadcast act
+  input wire                    comp_done,          // layer computation done
+  input wire                    broadcast_done,     // broadcast act done
   output wire                   fin_comp,           // finish computation
 
   // interfaces of PE state registers
@@ -71,9 +71,9 @@ PEComputationFSM pe_computation_fsm (
   .pe_start_calc                (pe_start_calc),    // start calcultion
   .pe_start_broadcast           (pe_start_broadcast),
                                                     // start broadcast
-  .fin_broadcast                (fin_broadcast),    // finish broadcast act
   .fin_comp                     (fin_comp),         // finish computation
-  .layer_done                   (layer_done),       // layer computation done
+  .broadcast_done               (broadcast_done),   // broadcast act done
+  .comp_done                    (comp_done),        // layer computation done
 
   // PE status interface
   .layer_no                     (layer_no),         // total layer no.

@@ -19,11 +19,11 @@ module RootController (
   input wire                      write_en,       // write enable (active high)
   input wire  [`DataBus]          write_data,     // write data
   input wire  [`AddrBus]          write_addr,     // write address
-  output wire                     write_rdy,      // write ready
+  output reg                      write_rdy,      // write ready
 
   // interfaces of read operation
   input wire                      read_en,        // read enable (active high)
-  output wire                     read_rdy,       // read ready (active high)
+  output reg                      read_rdy,       // read ready (active high)
   input wire  [`AddrBus]          read_addr,      // read address
   input wire                      read_data_rdy,  // read data ready
   output reg                      read_data_vld,  // read data valid
@@ -63,6 +63,8 @@ wire [`ROUTER_ADDR_WIDTH-1:0] in_data_route_addr = in_data[31:16];
 wire [`ROUTER_DATA_WIDTH-1:0] in_data_route_data = in_data[15:0];
 // counter for doing the statistic of PE
 reg [5:0] pe_no_reg, pe_no_next;
+// interrupt register next
+reg interrupt_next;
 
 // ---------------------------------
 // Local FIFO storing the read data
@@ -239,7 +241,7 @@ always @ (*) begin
   layer_idx_next    = layer_idx_reg;
   pe_no_next        = pe_no_reg;
 
-  interrupt         = 1'b0;
+  interrupt_next    = 1'b0;
 
   case (state_reg)
     STATE_IDLE: begin
@@ -329,7 +331,7 @@ always @ (*) begin
             // next state transfer
             if (layer_idx_reg == layer_no-1) begin
               state_next    = STATE_IDLE;
-              interrupt     = 1'b1; // generate 1-cycle tick for interrupt
+              interrupt_next= 1'b1; // generate 1-cycle tick for interrupt
             end else begin
               // proceed to the next layer
               state_next    = STATE_FIN_BROADCAST;
@@ -354,7 +356,7 @@ always @ (*) begin
         // next state transfer
         if (layer_idx_reg == layer_no-1) begin
           state_next    = STATE_IDLE;
-          interrupt     = 1'b1;   // generate 1-cycle tick for interrupt
+          interrupt_next= 1'b1;   // generate 1-cycle tick for interrupt
         end else begin
           state_next    = STATE_FIN_BROADCAST;
           layer_idx_next= layer_idx_incre;
@@ -364,8 +366,32 @@ always @ (*) begin
   endcase
 end
 
-// Output combinational logic
-assign write_rdy = (downstream_credit_count > 0) && (state_reg == STATE_IDLE);
-assign read_rdy = (downstream_credit_count > 0) && (state_reg == STATE_IDLE);
+// ---------------------------------
+// Primary output logic: registers
+// ---------------------------------
+always @ (posedge clk or posedge rst) begin
+  if (rst) begin
+    interrupt     <= 1'b0;
+  end else begin
+    interrupt     <= interrupt_next;
+  end
+end
+
+//TODO: buggy for non ideal ready
+always @ (posedge clk or posedge rst) begin
+  if (rst) begin
+    write_rdy     <= 1'b0;
+  end else begin
+    write_rdy     <= (downstream_credit_count > 0) && (state_reg == STATE_IDLE);
+  end
+end
+
+always @ (posedge clk or posedge rst) begin
+  if (rst) begin
+    read_rdy      <= 1'b0;
+  end else begin
+    read_rdy      <= (downstream_credit_count > 0) && (state_reg == STATE_IDLE);
+  end
+end
 
 endmodule

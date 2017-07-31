@@ -13,9 +13,9 @@ module PEComputationFSM (
   input wire                        pe_start_calc,// start calcultion
   output wire                       pe_start_broadcast,
                                                   // pe start broadcast
-  input wire                        fin_broadcast,// finish broadcast act
   output reg                        fin_comp,     // finish computation
-  input wire                        layer_done,   // layer computation done
+  input wire                        broadcast_done,// broadcast act done
+  input wire                        comp_done,    // layer computation done
 
   // PE status interface
   input wire  [`PeLayerNoBus]       layer_no,     // total layer no.
@@ -144,7 +144,7 @@ always @ (*) begin
       end
 
       // state transfer: go to post broadcast after receiving fin_broadcast
-      if (fin_broadcast) begin
+      if (broadcast_done) begin
         state_next  = STATE_W_CALC_POST_BROADCAST;
       end else begin
         state_next  = STATE_W_CALC_PRE_BROADCAST;
@@ -175,7 +175,7 @@ always @ (*) begin
     end
 
     STATE_LAYER_SYNC: begin
-      if (layer_done) begin
+      if (comp_done) begin
         // receive the layer done flag
         if (layer_idx_reg == layer_no - 1) begin
           // finish all the layers' computation, return to idle state

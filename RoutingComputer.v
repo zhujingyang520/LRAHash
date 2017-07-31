@@ -8,9 +8,9 @@
 `include "router.vh"
 
 module RoutingComputer #(
-  parameter   level               = `LEVEL_ROOT,  // level of the router
-  parameter   direction           = `DIR_LOCAL    // direction of the RC
+  parameter   level               = `LEVEL_ROOT   // level of the router
 ) (
+  input wire  [`DIR_WDITH-1:0]    direction,      // input direction
   input wire                      rc_en,          // routing enable
   input wire  [`ROUTER_INFO_WIDTH-1:0]
                                   route_info,     // routing info
@@ -21,14 +21,15 @@ module RoutingComputer #(
 );
 
 generate
-if (direction == `DIR_LOCAL) begin: gen_local_rc  // local port RC
-  if (level == `LEVEL_ROOT) begin: gen_root_rc
-    always @ (*) begin
+if (level == `LEVEL_ROOT) begin: gen_root_rc
+  always @ (*) begin
+    // route to 0 by default
+    route_port          = 5'b0;
+    if (direction == `DIR_LOCAL) begin
       if ((rc_en && route_info == `ROUTER_INFO_CONFIG) ||
           (rc_en && route_info == `ROUTER_INFO_READ)) begin
-        // send configuration data to a specified PE
-        // hardcode the root index selection
-        case (route_addr[15:14])
+        // send the data to the specified PE, hardcode the root index
+        case(route_addr[15:14])
           2'b00: begin
             route_port  = 5'b00001;
           end
@@ -41,31 +42,49 @@ if (direction == `DIR_LOCAL) begin: gen_local_rc  // local port RC
           2'b11: begin
             route_port  = 5'b01000;
           end
-          default: begin
-            route_port  = 5'b00000;
-          end
         endcase
-      end else if (rc_en && route_info == `ROUTER_INFO_CALC) begin
-        // broadcast to all 4 children
-        route_port      = 5'b01111;
-      end else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
-        // broadcast to all 4 children
-        route_port      = 5'b01111;
-      end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
-        // broadcast to all 4 children
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_CALC) begin
+        // broadcast to all 4 children when start calculation
         route_port      = 5'b01111;
       end
-      else begin
-        route_port      = 0;
+      else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
+        // broadcast to all 4 children when finish broadcast
+        route_port      = 5'b01111;
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
+        // broadcast to all 4 children when finish computation
+        route_port      = 5'b01111;
+      end
+    end else begin  // nonlocal direction
+      if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
+        // broadcast to all 4 children when doing calculation
+        route_port      = 5'b01111;
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
+        // send to the root node
+        route_port      = 5'b10000;
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
+        // send to the root node
+        route_port      = 5'b10000;
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_READ) begin
+        // send to the root node
+        route_port      = 5'b10000;
       end
     end
   end
-  else if (level == `LEVEL_INTERNAL) begin: gen_internal_rc
-    always @ (*) begin
+end
+else if (level == `LEVEL_INTERNAL) begin: gen_internal_rc
+  always @ (*) begin
+    // set route port to 0 by default
+    route_port          = 5'b0;
+    if (direction == `DIR_LOCAL) begin
       if ((rc_en && route_info == `ROUTER_INFO_CONFIG) ||
           (rc_en && route_info == `ROUTER_INFO_READ)) begin
-        // send the configruation data to a specified PE
-        // hardcode the internal index selection
+        // send the data to the specified direction, hardcode the index
+        // selection
         case (route_addr[13:12])
           2'b00: begin
             route_port  = 5'b00001;
@@ -80,29 +99,51 @@ if (direction == `DIR_LOCAL) begin: gen_local_rc  // local port RC
             route_port  = 5'b01000;
           end
         endcase
-      end else if (rc_en && route_info == `ROUTER_INFO_CALC) begin
-        // broadcast to all 4 children
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_CALC) begin
+        // broadcast start calculation to 4 children
         route_port      = 5'b01111;
-      end else if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
-        // broadcast to all 4 children
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
+        // broadcst activation to 4 children
         route_port      = 5'b01111;
-      end else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
-        // broadcast to all 4 children
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
+        // broadcast finish broadcast to 4 children
         route_port      = 5'b01111;
-      end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
-        // broadcast to all 4 children
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
+        // broadcast finish computation to 4 children
         route_port      = 5'b01111;
-      end else begin
-        route_port      = 0;
+      end
+    end else begin    // nonlocal port
+      if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
+        // route to the root during broadcast for the nonlocal port
+        route_port      = 5'b10000;
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
+        // route to the root during finish broadcast
+        route_port      = 5'b10000;
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
+        // route to the root during finish computation
+        route_port      = 5'b10000;
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_READ) begin
+        // route to the root for reading activations
+        route_port      = 5'b10000;
       end
     end
   end
-  else if (level == `LEVEL_LEAF) begin: gen_leaf_rc
-    always @ (*) begin
+end
+else if (level == `LEVEL_LEAF) begin: gen_internal_rc
+  always @ (*) begin
+    // route to 0 by default
+    route_port          = 5'b0;
+    if (direction == `DIR_LOCAL) begin
       if ((rc_en && route_info == `ROUTER_INFO_CONFIG) ||
           (rc_en && route_info == `ROUTER_INFO_READ)) begin
-        // send the configuration data to a specified PE
-        // hardcode the leaf index selection
+        // send the data to the specified PE, hardcode the leaf index
         case (route_addr[11:10])
           2'b00: begin
             route_port  = 5'b00001;
@@ -117,81 +158,47 @@ if (direction == `DIR_LOCAL) begin: gen_local_rc  // local port RC
             route_port  = 5'b01000;
           end
         endcase
-      end else if (rc_en && route_info == `ROUTER_INFO_CALC) begin
-        // broadcast to all 4 children
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_CALC) begin
+        // broadcast start calculation to 4 children
         route_port      = 5'b01111;
-      end else if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
-        // broadcast to all 4 children
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
+        // broadcst activation to 4 children
         route_port      = 5'b01111;
-      end else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
-        // broadcast to all 4 children
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
+        // broadcast finish broadcast to 4 children
         route_port      = 5'b01111;
-      end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
-        // broadcast to all 4 children
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
+        // broadcast finish computation to 4 children
         route_port      = 5'b01111;
-      end else begin
-        route_port      = 0;
+      end
+    end else begin    // nonlocal port
+      if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
+        // route to the root during broadcast for the nonlocal port
+        route_port      = 5'b10000;
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
+        // route to the root during finish broadcast
+        route_port      = 5'b10000;
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
+        // route to the root during finish computation
+        route_port      = 5'b10000;
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_READ) begin
+        // route to the root for reading activations
+        route_port      = 5'b10000;
       end
     end
   end
 end
-else begin: gen_nonlocal_rc
-  if (level == `LEVEL_ROOT) begin: gen_root_rc
-    always @ (*) begin
-      if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
-        // broadcast to all PEs, distribute to all 4 children
-        route_port        = 5'b01111;
-      end else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
-        // finish the broadcast, send to the root controller
-        route_port        = 5'b10000;
-      end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
-        // finish the computation, send to the root controller
-        route_port        = 5'b10000;
-      end else if (rc_en && route_info == `ROUTER_INFO_READ) begin
-        // transfer the local activation value to the ROOT level
-        route_port        = 5'b10000;
-      end else begin
-        route_port        = 5'b0;
-      end
-    end
-  end
-  else if (level == `LEVEL_INTERNAL) begin: gen_internal_rc
-    always @ (*) begin
-      if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
-        // broadcast to all PEs, first go up to the root node
-        route_port        = 5'b10000;
-      end else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
-        // finish the broadcast, send to the root controller
-        route_port        = 5'b10000;
-      end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
-        // finish the computation, send to the root controller
-        route_port        = 5'b10000;
-      end else if (rc_en && route_info == `ROUTER_INFO_READ) begin
-        // transfer the local activation value to the ROOT level
-        route_port        = 5'b10000;
-      end else begin
-        route_port        = 5'b0;
-      end
-    end
-  end
-  else if (level == `LEVEL_LEAF) begin: gen_leaf_rc
-    always @ (*) begin
-      if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
-        // broadcast to all PEs, first go up to the root node
-        route_port        = 5'b10000;
-      end else if (rc_en && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
-        // finish the broadcast, send to the root controller
-        route_port        = 5'b10000;
-      end else if (rc_en && route_info == `ROUTER_INFO_FIN_COMP) begin
-        // finish the computation, send to the root controller
-        route_port        = 5'b10000;
-      end else if (rc_en && route_info == `ROUTER_INFO_READ) begin
-        // transfer the local activation value to the ROOT level
-        route_port        = 5'b10000;
-      end else begin
-        route_port        = 5'b0;
-      end
-    end
+else begin: gen_undef
+  initial begin
+    $display("[ERROR]: unexpected DIR: %d", direction);
+    $finish;
   end
 end
 endgenerate
