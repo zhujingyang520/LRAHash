@@ -124,7 +124,7 @@ end
 always @ (posedge clk) begin
   if (in_act_write_en) begin
     $display("@%t CONFIG PE[%d]: act[%d] = %d", $time, PE_IDX,
-      in_act_write_addr, in_act_write_data);
+      in_act_write_addr, $signed(in_act_write_data));
   end
 end
 // synopsys translate_on

@@ -10,7 +10,7 @@
 module RoutingComputer #(
   parameter   level               = `LEVEL_ROOT   // level of the router
 ) (
-  input wire  [`DIR_WDITH-1:0]    direction,      // input direction
+  input wire  [`DIR_WIDTH-1:0]    direction,      // input direction
   input wire                      rc_en,          // routing enable
   input wire  [`ROUTER_INFO_WIDTH-1:0]
                                   route_info,     // routing info

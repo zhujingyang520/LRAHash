@@ -43,6 +43,8 @@ wire [`PeStatusDataBus] pe_status_data;
 wire [`PeLayerNoBus] layer_no;
 wire [`PeActNoBus] in_act_no;
 wire [`PeActNoBus] out_act_no;
+wire [`PeAddrBus] col_dim;
+wire [`WMemAddrBus] w_mem_offset;
 
 // ----------------------------------------------
 // Interconnections of activation register files
@@ -65,7 +67,6 @@ wire [`PeDataBus] out_act_read_data;
 // -----------------------------------
 wire pe_start_calc;
 wire fin_comp;
-wire broadcast_done;
 wire comp_done;
 wire [`PeLayerNoBus] layer_idx;
 
@@ -84,7 +85,6 @@ wire queue_empty;
 // Stage 1: memory address computation
 wire comp_en;
 wire [`PeAddrBus] in_act_idx;
-wire [`PeAddrBus] out_act_idx;
 wire [`PeActNoBus] out_act_addr;
 wire [`PeDataBus] in_act_value;
 // Stage 2: memory access
@@ -146,7 +146,6 @@ NetworkInterface network_interface (
   .act_send_data      (act_send_data),      // act send data
   .fin_comp           (fin_comp),           // finish computation
   .pe_start_calc      (pe_start_calc),      // PE start calculation
-  .broadcast_done     (broadcast_done),     // broadcast act done
   .router_rdy         (router_rdy),         // router is ready to send
   .comp_done          (comp_done),          // layer computation done
 
@@ -165,7 +164,6 @@ PEController pe_controller (
   .rst                (rst),                // system reset
 
   .pe_start_calc      (pe_start_calc),      // start calculation
-  .broadcast_done     (broadcast_done),     // finish broadcast act
   .comp_done          (comp_done),          // layer computation done
   .fin_comp           (fin_comp),           // finish computation
 
@@ -199,7 +197,6 @@ PEController pe_controller (
   // computation datapath
   .comp_en            (comp_en),            // compute enable
   .in_act_idx         (in_act_idx),         // input activation idx
-  .out_act_idx        (out_act_idx),        // output activation idx
   .out_act_addr       (out_act_addr),       // output activation address
   .in_act_value       (in_act_value)        // input activation value
 );
@@ -221,9 +218,9 @@ PEStateReg pe_state_reg (
   .layer_idx          (layer_idx),          // layer index
   .layer_no           (layer_no),           // layer number
   .in_act_no          (in_act_no),          // input activation no.
-  .out_act_no         (out_act_no)          // output activation no.
-  //output wire [`PeActNoBus]     act_no,   // activation number
-  //output wire [`PeRealWNoBus]   real_w_no // real weight number
+  .out_act_no         (out_act_no),         // output activation no.
+  .col_dim            (col_dim),            // column dimension
+  .w_mem_offset       (w_mem_offset)        // weight memory address offset
 );
 
 // ------------------------------------------------------
@@ -256,8 +253,9 @@ MemAddrComp mem_addr_comp (
   .comp_en            (comp_en),            // computation enable
   .layer_idx          (layer_idx),          // layer index
   .in_act_idx         (in_act_idx),         // input activation index
-  .out_act_idx        (out_act_idx),        // output activation index
   .out_act_addr       (out_act_addr),       // output activation address
+  .col_dim            (col_dim),            // column dimension
+  .w_mem_offset       (w_mem_offset),       // weight memory address offset
   .in_act_value       (in_act_value),       // input activation value
 
   // Output datapath & control path (memory stage)

@@ -293,6 +293,7 @@ always @ (*) begin
 
             state_next  = STATE_FIN_COMP;
           end else begin
+            // downstreaming router is busy
             state_next  = STATE_WAIT_FOR_BROADCAST;
           end
         end

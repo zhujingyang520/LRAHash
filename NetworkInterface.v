@@ -44,7 +44,6 @@ module NetworkInterface (
   input wire  [`PeDataBus]        act_send_data,      // act send data
   input wire                      fin_comp,           // finish computation
   output wire                     pe_start_calc,      // PE start calculation
-  output wire                     broadcast_done,     // broadcast done
   output wire                     router_rdy,         // router is ready to send
   output wire                     comp_done,          // layer computation done
 
@@ -83,7 +82,6 @@ NIInputUnit ni_input_unit (
 
   // PE controller interface
   .pe_start_calc          (pe_start_calc),            // pe start calculation
-  .broadcast_done         (broadcast_done),           // broadcast done
   .comp_done              (comp_done),                // computation done
 
   // Activation queue in processing element

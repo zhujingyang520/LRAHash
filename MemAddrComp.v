@@ -15,8 +15,9 @@ module MemAddrComp (
   input wire                  comp_en,          // computation enable
   input wire  [`PeLayerNoBus] layer_idx,        // layer index
   input wire  [`PeAddrBus]    in_act_idx,       // input activation index
-  input wire  [`PeAddrBus]    out_act_idx,      // output activation index
   input wire  [`PeActNoBus]   out_act_addr,     // output activation address
+  input wire  [`PeAddrBus]    col_dim,          // column dimension
+  input wire  [`WMemAddrBus]  w_mem_offset,     // weight memory address offset
   input wire  [`PeDataBus]    in_act_value,     // input activation value
 
   // Output datapath & control path (memory stage)
@@ -31,7 +32,9 @@ module MemAddrComp (
 );
 
 // TODO: address computation using pseudo hash
-wire [`WMemAddrBus] hash_result = comp_en ? 1 : 0;
+wire [`PeAddrBus] out_act_idx = {out_act_addr, PE_IDX};
+wire [`WMemAddrBus] addr = w_mem_offset + out_act_addr * col_dim + in_act_idx;
+wire [`WMemAddrBus] hash_result = comp_en ? addr : 0;
 
 // -------------------------------------------
 // Pipeline the input datapath & control path

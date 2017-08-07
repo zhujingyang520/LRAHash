@@ -23,7 +23,7 @@
 `define PeAddrBus `PE_ADDR_WIDTH-1:0
 
 // PE state registers
-`define PE_STATUS_ADDR_WIDTH 4
+`define PE_STATUS_ADDR_WIDTH 6
 `define PeStatusAddrBus `PE_STATUS_ADDR_WIDTH-1:0
 `define PE_STATUS_DATA_WIDTH 16
 `define PeStatusDataBus `PE_STATUS_DATA_WIDTH-1:0

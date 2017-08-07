@@ -32,7 +32,6 @@ module NIInputUnit (
 
   // PE controller interface
   output reg                      pe_start_calc,      // pe start calculation
-  output reg                      broadcast_done,     // broadcast done
   output reg                      comp_done,          // computation done
 
   // Activation queue in processing element
@@ -80,7 +79,7 @@ always @ (*) begin
       route_addr[7] == 1'b0) begin
     // write to the PE status registers ([7] = 1'b0)
     pe_status_we    = 1'b1;
-    pe_status_addr  = route_addr[3:0];
+    pe_status_addr  = route_addr[`PeStatusAddrBus];
     pe_status_data  = route_data;
   end else begin
     pe_status_we    = 1'b0;
@@ -110,14 +109,9 @@ end
 // ------------------------------------
 always @ (*) begin
   pe_start_calc       = 1'b0;
-  broadcast_done      = 1'b0;
   comp_done           = 1'b0;
   if (in_data_valid && route_info == `ROUTER_INFO_CALC) begin
     pe_start_calc     = 1'b1;
-  end
-
-  if (in_data_valid && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
-    broadcast_done    = 1'b1;
   end
 
   if (in_data_valid && route_info == `ROUTER_INFO_FIN_COMP) begin
@@ -135,6 +129,14 @@ always @ (*) begin
     // with the current PE
     push_act          = 1'b1;
     act               = {route_addr[`PE_ADDR_WIDTH-1:0], route_data};
+  end else if (in_data_valid && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
+    // it is possible that activation queue is non-empty when receiving
+    // the broadcast finish packet
+    push_act          = 1'b1;
+    act               = 0;  // full 0s packet
+    // synopsys translate_off
+    $display("@%t PE[%d] receives finish broadcast packet", $time, PE_IDX);
+    // synopsys translate_on
   end else begin
     push_act          = 1'b0;
     act               = 0;
@@ -144,23 +146,6 @@ end
 // ----------------------------------
 // Upstream credit transfer
 // ----------------------------------
-// Corner case: received the finish computation and pop the activation
-// simultaneously. We need to send 2 upstream credits!
-reg upstream_credit_borrow_reg;
-always @ (posedge clk or posedge rst) begin
-  if (rst) begin
-    upstream_credit_borrow_reg  <= 1'b0;
-  end else if (in_data_valid && route_info == `ROUTER_INFO_FIN_BROADCAST &&
-      pop_act) begin
-    upstream_credit_borrow_reg  <= 1'b1;
-    // synopsys translate_off
-    $display("@%t [ERROR]: credit transfer overlap in PE[%d]", $time, PE_IDX);
-    // synopsys translate_on
-  end else if (upstream_credit_borrow_reg && !pop_act) begin
-    upstream_credit_borrow_reg  <= 1'b0;
-  end
-end
-
 always @ (posedge clk or posedge rst) begin
   if (rst) begin
     upstream_credit   <= 1'b0;
@@ -169,9 +154,6 @@ always @ (posedge clk or posedge rst) begin
     upstream_credit   <= 1'b1;
   end else if (in_data_valid && route_info == `ROUTER_INFO_CALC) begin
     // local PE consumes CALC packet instantly
-    upstream_credit   <= 1'b1;
-  end else if (in_data_valid && route_info == `ROUTER_INFO_FIN_BROADCAST) begin
-    // local PE consumes FIN BROADCAST instantly
     upstream_credit   <= 1'b1;
   end else if (in_data_valid && route_info == `ROUTER_INFO_FIN_COMP) begin
     // local PE consumes FIN COMP instantly
@@ -182,9 +164,6 @@ always @ (posedge clk or posedge rst) begin
     upstream_credit   <= 1'b1;
   end else if (pop_act) begin
     // release 1 upstreaming FIFO when consumes 1 element in PE queue
-    upstream_credit   <= 1'b1;
-  end else if (upstream_credit_borrow_reg) begin
-    // release 1 upstreaming FIFO when borrow flag is turned on
     upstream_credit   <= 1'b1;
   end else if (read_rqst_read_en) begin
     // release 1 upstreaming FIFO when issue 1 read request
@@ -201,7 +180,7 @@ end
 always @ (posedge clk) begin
   if (in_data_valid && route_info == `ROUTER_INFO_BROADCAST) begin
     $display("@%t PE[%d] received BROADCAST: addr = %d, data = %d",
-      $time, PE_IDX, route_addr, route_data);
+      $time, PE_IDX, route_addr, $signed(route_data));
   end
 
   if (in_data_valid && route_info == `ROUTER_INFO_FIN_BROADCAST) begin

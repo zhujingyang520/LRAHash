@@ -100,7 +100,7 @@ end
 always @ (posedge clk) begin
   if (read_data_vld && read_data_rdy) begin
     $display("@%t Testbench received Act[%d] = %d", $time,
-      read_data[27:16], read_data[15:0]);
+      read_data[27:16], $signed(read_data[15:0]));
   end
 end
 

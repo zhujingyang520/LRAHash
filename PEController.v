@@ -16,7 +16,6 @@ module PEController (
   // interfaces of network interface
   input wire                    pe_start_calc,      // start calculation
   input wire                    comp_done,          // layer computation done
-  input wire                    broadcast_done,     // broadcast act done
   output wire                   fin_comp,           // finish computation
 
   // interfaces of PE state registers
@@ -50,7 +49,6 @@ module PEController (
   // computation datapath
   output wire                   comp_en,            // compute enable
   output wire [`PeAddrBus]      in_act_idx,         // input activation idx
-  output wire [`PeAddrBus]      out_act_idx,        // output activation idx
   output wire [`PeActNoBus]     out_act_addr,       // output activation address
   output wire [`PeDataBus]      in_act_value        // input activation value
 );
@@ -72,7 +70,6 @@ PEComputationFSM pe_computation_fsm (
   .pe_start_broadcast           (pe_start_broadcast),
                                                     // start broadcast
   .fin_comp                     (fin_comp),         // finish computation
-  .broadcast_done               (broadcast_done),   // broadcast act done
   .comp_done                    (comp_done),        // layer computation done
 
   // PE status interface
@@ -92,7 +89,6 @@ PEComputationFSM pe_computation_fsm (
   // Computation datapath
   .comp_en                      (comp_en),          // compute enable
   .in_act_idx                   (in_act_idx),       // input activation idx
-  .out_act_idx                  (out_act_idx),      // output activation idx
   .out_act_addr                 (out_act_addr),     // output activation address
   .in_act_value                 (in_act_value)      // input activation value
 );
