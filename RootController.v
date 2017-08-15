@@ -77,7 +77,7 @@ wire read_op_fifo_empty;
 
 fifo_sync # (
   .BIT_WIDTH            (`READ_DATA_WIDTH),         // bit width
-  .FIFO_DEPTH           (`ROUTER_FIFO_DEPTH)        // fifo depth (power of 2)
+  .FIFO_DEPTH           (`TOT_FIFO_DEPTH)           // fifo depth (power of 2)
 ) read_op_fifo (
   .clk                  (clk),                      // system clock
   .rst                  (rst),                      // system reset
@@ -203,7 +203,7 @@ end
 // ---------------------------------------------
 always @ (posedge clk or posedge rst) begin
   if (rst) begin
-    downstream_credit_count     <= `ROUTER_FIFO_DEPTH;
+    downstream_credit_count     <= `TOT_FIFO_DEPTH;
   end else begin
     case ({downstream_credit, downstream_credit_count_decre})
       2'b01: begin

@@ -109,8 +109,10 @@ else begin: gen_depth_greater_1
 // -----------------------------
 reg [ADDR_WIDTH-1:0] read_ptr_reg, read_ptr_next;
 reg [ADDR_WIDTH-1:0] write_ptr_reg, write_ptr_next;
-wire [ADDR_WIDTH-1:0] read_ptr_incre = read_ptr_reg + 1;
-wire [ADDR_WIDTH-1:0] write_ptr_incre = write_ptr_reg + 1;
+wire [ADDR_WIDTH-1:0] read_ptr_incre = (read_ptr_reg == FIFO_DEPTH-1) ? 0 :
+  read_ptr_reg + 1;
+wire [ADDR_WIDTH-1:0] write_ptr_incre = (write_ptr_reg == FIFO_DEPTH-1) ? 0 :
+  write_ptr_reg + 1;
 
 // -----------------
 // status registers

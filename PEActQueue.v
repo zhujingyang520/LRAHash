@@ -17,7 +17,8 @@ module PEActQueue (
   // interface of data path
   input wire                      pop_act,      // pop the activation
   output wire [`PEQueueBus]       act_out,      // activation @ head
-  output wire                     queue_empty   // flag for empty queue
+  output wire                     queue_empty,  // flag for empty queue
+  output wire                     queue_empty_next
 );
 
 // ---------------------------
@@ -41,7 +42,7 @@ fifo_sync # (
   .fifo_empty         (queue_empty),            // fifo is empty
   .fifo_full          (/* floating */),         // fifo is full
   // next logic of fifo status flag
-  .fifo_empty_next    (/* floating */),
+  .fifo_empty_next    (queue_empty_next),
   .fifo_full_next     (/* floating */)
 );
 

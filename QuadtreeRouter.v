@@ -42,6 +42,7 @@ wire [`ROUTER_ADDR_WIDTH-1:0] route_addr [`DIRECTION-1:0];
 wire [`DIRECTION-1:0] route_port [`DIRECTION-1:0];
 // SA
 wire [`DIRECTION-1:0] sa_request;
+wire [`DIRECTION*`ROUTER_INFO_WIDTH-1:0] sa_info;
 wire [`DIRECTION*`ROUTER_ADDR_WIDTH-1:0] sa_addr;
 wire [`DIRECTION-1:0] sa_grant;
 // ST
@@ -76,6 +77,7 @@ InputUnit input_unit (
 
   // switch arbiter
   .sa_request       (sa_request[g]),              // SA request
+  .sa_info          (sa_info[g*`ROUTER_INFO_WIDTH +: `ROUTER_INFO_WIDTH]),
   .sa_addr          (sa_addr[g*`ROUTER_ADDR_WIDTH +: `ROUTER_ADDR_WIDTH]),
   .sa_grant         (sa_grant[g]),                // SA grant
 
@@ -110,6 +112,7 @@ endgenerate
 // -----------------------
 SwitchAllocator sa (
   .sa_request       (sa_request),                 // SA request
+  .sa_info          (sa_info),                    // SA info
   .sa_addr          (sa_addr),                    // SA address
   .sa_grant         (sa_grant)                    // SA grant
 );

@@ -38,7 +38,11 @@
 `define ROUTER_INFO_READ 4'd5           // read register files
 // Router FIFO depth
 `define ROUTER_FIFO_DEPTH 4
-// Credit count width (log2(ROUTER_FIFO_DEPTH)+1)
-`define CREDIT_CNT_WIDTH 3
+// Router FIFO split (resolve the bubble caused by back-to-back packet stall)
+`define ROUTER_FIFO_SPLIT 2
+// Total FIFO depth per port
+`define TOT_FIFO_DEPTH `ROUTER_FIFO_DEPTH*`ROUTER_FIFO_SPLIT
+// Credit count width (log2(TOT_FIFO_DEPTH)+1)
+`define CREDIT_CNT_WIDTH 4
 
 `endif

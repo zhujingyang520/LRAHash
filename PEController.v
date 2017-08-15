@@ -42,6 +42,7 @@ module PEController (
 
   // interfaces of PE activation queue
   input wire                    queue_empty,        // activation queue empty
+  input wire                    queue_empty_next,
   input wire  [`PEQueueBus]     act_out,            // activation queue output
   output wire                   pop_act,            // activation queue pop
   output wire                   out_act_clear,      // output activation clear
@@ -82,6 +83,7 @@ PEComputationFSM pe_computation_fsm (
 
   // PE activation queue interface
   .queue_empty                  (queue_empty),      // activation queue empty
+  .queue_empty_next             (queue_empty_next),
   .act_out                      (act_out),          // activation queue output
   .pop_act                      (pop_act),          // activation queue pop
   .out_act_clear                (out_act_clear),    // output activation clear

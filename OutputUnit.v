@@ -68,9 +68,6 @@ always @ (posedge clk or posedge rst) begin
       2'b10: begin
         credit_count_reg  <= credit_count_reg - 1;
       end
-      default: begin
-        credit_count_reg  <= credit_count_reg;
-      end
     endcase
   end
 end
@@ -82,7 +79,7 @@ else begin: gen_output_unit_non_leaf_nonlocal
 reg [`CREDIT_CNT_WIDTH-1:0] credit_count_reg;
 always @ (posedge clk or posedge rst) begin
   if (rst) begin
-    credit_count_reg      <= `ROUTER_FIFO_DEPTH;
+    credit_count_reg      <= `TOT_FIFO_DEPTH;
   end else begin
     case({credit_decre, credit_incre})
       2'b00, 2'b11: begin
@@ -94,9 +91,6 @@ always @ (posedge clk or posedge rst) begin
       end
       2'b10: begin
         credit_count_reg  <= credit_count_reg - 1;
-      end
-      default: begin
-        credit_count_reg  <= credit_count_reg;
       end
     endcase
   end

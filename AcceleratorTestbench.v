@@ -12,7 +12,7 @@ module AcceleratorTestbench;
 
 `include "mem_init_task.vh"
 
-localparam CLK_PERIOD = 10.0;
+localparam CLK_PERIOD = 2.0;
 
 // ---------------------------------------
 // Signals Definitions for Accelerator

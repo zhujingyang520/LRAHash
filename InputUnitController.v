@@ -10,7 +10,7 @@
 module InputUnitController (
   input wire                      clk,            // system clock
   input wire                      rst,            // system reset (active high)
-  input wire                      in_data_valid,  // input data valid
+  input wire                      fifo_write_en,  // fifo write enable
   input wire                      fifo_empty,     // channel buffer empty
   input wire                      fifo_empty_next,// channel buffer empty
   input wire  [`ROUTER_WIDTH-1:0] fifo_data,      // channel buffer data
@@ -22,7 +22,8 @@ module InputUnitController (
   output reg [`DIRECTION-1:0]     out_credit_decre, // downstreaming credit decrement
 
   // routing computation interface
-  output reg                      rc_en,          // rc enable
+  input wire                      rc_grant,       // rc grant
+  output reg                      rc_request,     // rc request
   output reg  [`ROUTER_INFO_WIDTH-1:0]
                                   route_info,     // routing info
   output reg  [`ROUTER_ADDR_WIDTH-1:0]
@@ -31,6 +32,8 @@ module InputUnitController (
 
   // switch arbiter
   output reg                      sa_request,     // SA request
+  output reg  [`ROUTER_INFO_WIDTH-1:0]
+                                  sa_info,        // SA info
   output reg  [`ROUTER_ADDR_WIDTH-1:0]
                                   sa_addr,        // SA address
   input wire                      sa_grant,       // SA grant
@@ -108,39 +111,44 @@ always @ (*) begin
   in_credit_next    = 1'b0;
   out_credit_decre  = 0;
   route_next        = route_reg;
-  rc_en             = 1'b0;
+  rc_request        = 1'b0;
   route_info        = 0;
   route_addr        = 0;
   sa_request        = 1'b0;
+  sa_info           = 0;
   sa_addr           = 0;
   st_ctrl_in_next   = 0;
   st_data_in_next   = 0;
 
   case (state_reg)
     STATE_IDLE: begin
-      if (in_data_valid || !fifo_empty) begin
+      if (fifo_write_en || !fifo_empty) begin
         state_next  = STATE_ROUTING;
       end
     end
 
     STATE_ROUTING: begin
       // hardcode the bit location
-      rc_en         = 1'b1;
+      rc_request    = 1'b1;
       route_info    = fifo_data[35:32];
       route_addr    = fifo_data[31:16];
-      // use the routing results computated by RC module
-      route_next    = route_port;
-      // state next: go to wait for credit or active stage
-      state_next    = STATE_ACTIVE;
+      if (rc_grant) begin
+        // use the routing results computated by RC module
+        route_next  = route_port;
+        // state next: go to wait for credit or active stage
+        state_next  = STATE_ACTIVE;
+      end
     end
 
     STATE_ACTIVE: begin
       // hardcode the address index
       if ((out_credit_avail & route_reg) == route_reg) begin
         sa_request      = 1'b1;
+        sa_info         = fifo_data[35:32];
         sa_addr         = fifo_data[31:16];
       end else begin
         sa_request      = 1'b0;
+        sa_info         = 0;
         sa_addr         = 0;
       end
       if (sa_grant) begin

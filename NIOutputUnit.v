@@ -90,7 +90,7 @@ reg [`CREDIT_CNT_WIDTH-1:0] credit_count;
 wire credit_decre = act_send_en | fin_comp | read_rqst_read_en;
 always @ (posedge clk or posedge rst) begin
   if (rst) begin
-    credit_count      <= `ROUTER_FIFO_DEPTH;
+    credit_count      <= `TOT_FIFO_DEPTH;
   end else begin
     case ({downstream_credit, credit_decre})
       2'b01: begin

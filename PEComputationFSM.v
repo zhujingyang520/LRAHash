@@ -26,6 +26,7 @@ module PEComputationFSM (
 
   // PE activation queue interface
   input wire                        queue_empty,  // activation queue empty
+  input wire                        queue_empty_next,
   input wire  [`PEQueueBus]         act_out,      // activation queue output
   output reg                        pop_act,      // activation queue pop
   output wire                       out_act_clear,// output activation clear
@@ -42,7 +43,8 @@ module PEComputationFSM (
 // ----------------------
 localparam    STATE_IDLE            = 4'd0,       // idle state
               STATE_W_CALC          = 4'd1,       // W calculation state
-              STATE_LAYER_SYNC      = 4'd2;       // layer synchronization
+              STATE_W_DRAIN         = 4'd2,       // Drain existing act in queue
+              STATE_LAYER_SYNC      = 4'd3;       // layer synchronization
 
 // FSM state register
 reg [3:0] state_reg, state_next;
@@ -141,8 +143,34 @@ always @ (*) begin
         end else begin
           // receive full 0s packet: represents the broadcast has finished
           pop_act     = 1'b1;
-          fin_comp    = 1'b1;
-          state_next  = STATE_LAYER_SYNC;
+          if (queue_empty_next) begin
+            fin_comp    = 1'b1;
+            state_next  = STATE_LAYER_SYNC;
+          end else begin
+            state_next  = STATE_W_DRAIN;
+          end
+        end
+      end
+    end
+
+    STATE_W_DRAIN: begin
+      if (~queue_empty) begin
+        // go to the next activation index
+        out_act_idx_next  = (out_act_idx_reg == out_act_no-1) ? 0 :
+          out_act_idx_incre;
+        // computation enable
+        comp_en_d     = 1'b1;
+        in_act_idx_d  = act_out[`PE_QUEUE_WIDTH-1:`PE_DATA_WIDTH];
+        in_act_value_d= act_out[`PE_DATA_WIDTH-1:0];
+        out_act_addr_d= out_act_idx_reg;
+
+        // if all the activation finishes
+        if (out_act_idx_reg == out_act_no-1) begin
+          pop_act     = 1'b1;
+          if (queue_empty_next) begin
+            fin_comp    = 1'b1;
+            state_next  = STATE_LAYER_SYNC;
+          end
         end
       end
     end

@@ -196,10 +196,12 @@ else if (level == `LEVEL_LEAF) begin: gen_internal_rc
   end
 end
 else begin: gen_undef
+  // synopsys translate_off
   initial begin
     $display("[ERROR]: unexpected DIR: %d", direction);
     $finish;
   end
+  // synopsys translate_on
 end
 endgenerate
 

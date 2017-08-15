@@ -78,6 +78,7 @@ wire [`PEQueueBus] act_in;
 wire pop_act;
 wire [`PEQueueBus] act_out;
 wire queue_empty;
+wire queue_empty_next;
 
 // -----------------------------------------
 // Interconnections of computation datapath
@@ -190,6 +191,7 @@ PEController pe_controller (
 
   // interfaces of PE activation queue
   .queue_empty        (queue_empty),        // activation queue empty
+  .queue_empty_next   (queue_empty_next),
   .act_out            (act_out),            // activation queue output
   .pop_act            (pop_act),            // activation queue pop
   .out_act_clear      (out_act_clear),      // output activation clear
@@ -237,7 +239,8 @@ PEActQueue pe_act_queue (
   // interface of data path
   .pop_act            (pop_act),            // pop the activation
   .act_out            (act_out),            // activation @ head
-  .queue_empty        (queue_empty)         // flag for empty queue
+  .queue_empty        (queue_empty),        // flag for empty queue
+  .queue_empty_next   (queue_empty_next)
 );
 
 // ----------------------------------------

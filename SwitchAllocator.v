@@ -2,7 +2,7 @@
 // Module name: SwitchAllocator
 //
 // This file exports the module `SwitchAllocator`. The arbiter is simplified
-// into always grant the local port's request. The remaining 4 directions is
+// into always grant the local port's request. The remaining 4 directions are
 // allocated based on the associated address.
 // =============================================================================
 
@@ -10,14 +10,41 @@
 
 module SwitchAllocator (
   input wire  [`DIRECTION-1:0]      sa_request,           // SA request
+  input wire  [`DIRECTION*`ROUTER_INFO_WIDTH-1:0]
+                                    sa_info,              // SA info
   input wire  [`DIRECTION*`ROUTER_ADDR_WIDTH-1:0]
                                     sa_addr,              // SA address
   output reg  [`DIRECTION-1:0]      sa_grant              // SA grant
 );
 
 // Always grant the local port request
+// Corner case: the contention of FIN_BROADCAST with BROADCAST
+// unpack the 5 direction info
+wire [`ROUTER_INFO_WIDTH-1:0] sa_info_dir [`DIRECTION-1:0];
+assign sa_info_dir[`DIR_NW] = sa_info[`DIR_NW*`ROUTER_INFO_WIDTH +:
+                                      `ROUTER_INFO_WIDTH];
+assign sa_info_dir[`DIR_NE] = sa_info[`DIR_NE*`ROUTER_INFO_WIDTH +:
+                                      `ROUTER_INFO_WIDTH];
+assign sa_info_dir[`DIR_SE] = sa_info[`DIR_SE*`ROUTER_INFO_WIDTH +:
+                                      `ROUTER_INFO_WIDTH];
+assign sa_info_dir[`DIR_SW] = sa_info[`DIR_SW*`ROUTER_INFO_WIDTH +:
+                                      `ROUTER_INFO_WIDTH];
+assign sa_info_dir[`DIR_LOCAL] = sa_info[`DIR_LOCAL*`ROUTER_INFO_WIDTH +:
+                                      `ROUTER_INFO_WIDTH];
+
 always @ (*) begin
   sa_grant[`DIR_LOCAL] = sa_request[`DIR_LOCAL];
+  // corner case
+  if (sa_request[`DIR_LOCAL] && sa_info_dir[`DIR_LOCAL] ==
+    `ROUTER_INFO_FIN_BROADCAST) begin
+    if ( (sa_request[`DIR_NW] && sa_info_dir[`DIR_NW] == `ROUTER_INFO_BROADCAST)
+      || (sa_request[`DIR_NE] && sa_info_dir[`DIR_NE] == `ROUTER_INFO_BROADCAST)
+      || (sa_request[`DIR_SE] && sa_info_dir[`DIR_SE] == `ROUTER_INFO_BROADCAST)
+      || (sa_request[`DIR_SW] && sa_info_dir[`DIR_SW] == `ROUTER_INFO_BROADCAST)
+      ) begin
+      sa_grant[`DIR_LOCAL] = 1'b0;
+    end
+  end
 end
 
 // For non-local port, we grant the port with the lowest address
@@ -54,9 +81,6 @@ always @ (*) begin
         dir_level_0_0 = `DIR_NE;
       end
     end
-    default: begin
-      dir_level_0_0   = `DIR_NIL;
-    end
   endcase
 end
 
@@ -78,9 +102,6 @@ always @ (*) begin
       end else begin
         dir_level_0_1 = `DIR_SW;
       end
-    end
-    default: begin
-      dir_level_0_1   = `DIR_NIL;
     end
   endcase
 end
