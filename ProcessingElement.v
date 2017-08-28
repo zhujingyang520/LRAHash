@@ -33,6 +33,9 @@ wire router_rdy;
 wire act_send_en;
 wire [`ROUTER_ADDR_WIDTH-1:0] act_send_addr;
 wire [`PeDataBus] act_send_data;
+wire part_sum_send_en;
+wire [`PeDataBus] part_sum_send_data;
+wire [`ROUTER_ADDR_WIDTH-1:0] part_sum_send_addr;
 
 // ---------------------------------------
 // Interconnections of PE state registers
@@ -45,6 +48,11 @@ wire [`PeActNoBus] in_act_no;
 wire [`PeActNoBus] out_act_no;
 wire [`PeAddrBus] col_dim;
 wire [`WMemAddrBus] w_mem_offset;
+// uv related interface
+wire uv_en;
+wire [`RankBus] rank_no;
+wire [`UMemAddrBus] u_mem_offset;
+wire [`VMemAddrBus] v_mem_offset;
 
 // ----------------------------------------------
 // Interconnections of activation register files
@@ -61,6 +69,10 @@ wire out_act_clear;
 wire out_act_read_en;
 wire [`PeActNoBus] out_act_read_addr;
 wire [`PeDataBus] out_act_read_data;
+wire [`PE_ACT_NO-1:0] out_act_g_zeros;
+wire out_act_read_en_s;
+wire [`PeActNoBus] out_act_read_addr_s;
+wire [`PeDataBus] out_act_read_data_s;
 
 // -----------------------------------
 // Interconnections of PE controller
@@ -84,28 +96,35 @@ wire queue_empty_next;
 // Interconnections of computation datapath
 // -----------------------------------------
 // Stage 1: memory address computation
-wire comp_en;
+wire [`CompEnBus] comp_en;
 wire [`PeAddrBus] in_act_idx;
 wire [`PeActNoBus] out_act_addr;
 wire [`PeDataBus] in_act_value;
+wire [`WMemAddrBus] mem_offset;
 // Stage 2: memory access
-wire comp_en_mem;
+wire [`CompEnBus] comp_en_mem;
 wire [`PeDataBus] in_act_value_mem;
 wire [`PeActNoBus] out_act_addr_mem;
 wire w_mem_cen;
 wire w_mem_wen;
 wire [`WMemAddrBus] w_mem_addr;
+wire u_mem_cen;
+wire u_mem_wen;
+wire [`UMemAddrBus] u_mem_addr;
+wire v_mem_cen;
+wire v_mem_wen;
+wire [`VMemAddrBus] v_mem_addr;
 // Stage 3: multiplication (MULT)
-wire comp_en_mult;
+wire [`CompEnBus] comp_en_mult;
 wire [`PeDataBus] in_act_value_mult;
-wire [`PeDataBus] w_value_mult;
+wire [`PeDataBus] mem_value_mult;
 wire [`PeActNoBus] out_act_addr_mult;
 // Stage 4: addition (ADD)
-wire comp_en_add;
+wire [`CompEnBus] comp_en_add;
 wire [`PeDataBus] mult_result_add;
 wire [`PeActNoBus] out_act_addr_add;
 // Stage 5: output activation write back (WB)
-wire comp_en_wb;
+wire out_act_write_en;
 wire [`PeActNoBus] out_act_addr_wb;
 wire [`PeDataBus] add_result_wb;
 
@@ -149,6 +168,10 @@ NetworkInterface network_interface (
   .pe_start_calc      (pe_start_calc),      // PE start calculation
   .router_rdy         (router_rdy),         // router is ready to send
   .comp_done          (comp_done),          // layer computation done
+  // partial sum broadcast path
+  .part_sum_send_en   (part_sum_send_en),   // partial sum send enable
+  .part_sum_send_addr (part_sum_send_addr), // partial sum send addr
+  .part_sum_send_data (part_sum_send_data), // partial sum send data
 
   // Activation queue interface
   .pop_act            (pop_act),            // pop activation
@@ -173,6 +196,11 @@ PEController pe_controller (
   .layer_idx          (layer_idx),          // layer index
   .in_act_no          (in_act_no),          // input activation no.
   .out_act_no         (out_act_no),         // output activation no.
+  .uv_en              (uv_en),              // UV enable for cur layer
+  .rank_no            (rank_no),            // rank number
+  .w_mem_offset       (w_mem_offset),       // W memory offset
+  .u_mem_offset       (u_mem_offset),       // U memory offset
+  .v_mem_offset       (v_mem_offset),       // V memory offset
 
   // interfaces of activation register file
   .act_regfile_dir    (act_regfile_dir),    // act regfile direction
@@ -182,12 +210,20 @@ PEController pe_controller (
   .act_send_en        (act_send_en),        // act send enable
   .act_send_addr      (act_send_addr),      // act send address
   .act_send_data      (act_send_data),      // act send data
+  .part_sum_send_en   (part_sum_send_en),   // partial sum send enable
+  .part_sum_send_data (part_sum_send_data), // partial sum send data
+  .part_sum_send_addr (part_sum_send_addr), // partial sum send address
 
   // activation register file
   .in_act_read_data   (in_act_read_data),   // in act read data
   .in_act_read_en     (in_act_read_en),     // in act read enable
   .in_act_read_addr   (in_act_read_addr),   // in act read address
   .in_act_zeros       (in_act_zeros),       // in act zero flags
+  .out_act_g_zeros    (out_act_g_zeros),    // output act > zeros
+  // secondary activation read port
+  .out_act_read_en_s  (out_act_read_en_s),  // read enable
+  .out_act_read_addr_s(out_act_read_addr_s),// read address
+  .out_act_read_data_s(out_act_read_data_s),// read data
 
   // interfaces of PE activation queue
   .queue_empty        (queue_empty),        // activation queue empty
@@ -200,7 +236,8 @@ PEController pe_controller (
   .comp_en            (comp_en),            // compute enable
   .in_act_idx         (in_act_idx),         // input activation idx
   .out_act_addr       (out_act_addr),       // output activation address
-  .in_act_value       (in_act_value)        // input activation value
+  .in_act_value       (in_act_value),       // input activation value
+  .mem_offset         (mem_offset)          // memory offset
 );
 
 // --------------------
@@ -222,7 +259,13 @@ PEStateReg pe_state_reg (
   .in_act_no          (in_act_no),          // input activation no.
   .out_act_no         (out_act_no),         // output activation no.
   .col_dim            (col_dim),            // column dimension
-  .w_mem_offset       (w_mem_offset)        // weight memory address offset
+  .w_mem_offset       (w_mem_offset),       // weight memory address offset
+
+  // output uv calculation related parameters
+  .uv_en              (uv_en),              // uv enable
+  .rank_no            (rank_no),            // rank number
+  .u_mem_offset       (u_mem_offset),       // u memory address offset
+  .v_mem_offset       (v_mem_offset)        // v memory address offset
 );
 
 // ------------------------------------------------------
@@ -258,18 +301,29 @@ MemAddrComp mem_addr_comp (
   .in_act_idx         (in_act_idx),         // input activation index
   .out_act_addr       (out_act_addr),       // output activation address
   .col_dim            (col_dim),            // column dimension
-  .w_mem_offset       (w_mem_offset),       // weight memory address offset
   .in_act_value       (in_act_value),       // input activation value
+  .in_act_no          (in_act_no),          // input activation number
+  .rank_no            (rank_no),            // rank number
+  .mem_offset         (mem_offset),         // memory offset
 
   // Output datapath & control path (memory stage)
   .comp_en_mem        (comp_en_mem),        // computation enable
   .in_act_value_mem   (in_act_value_mem),   // input activation value
   .out_act_addr_mem   (out_act_addr_mem),   // output activation address
 
-  // Weight memory interfaces (active low)
+  // on-chip sram interfaces (active low)
+  // W memory
   .w_mem_cen          (w_mem_cen),          // weight memory enable
   .w_mem_wen          (w_mem_wen),          // weight memory write enable
-  .w_mem_addr         (w_mem_addr)          // weight memory address
+  .w_mem_addr         (w_mem_addr),         // weight memory address
+  // U memory
+  .u_mem_cen          (u_mem_cen),          // U memory enable
+  .u_mem_wen          (u_mem_wen),          // U memory write enable
+  .u_mem_addr         (u_mem_addr),         // U memory address
+  // V memory
+  .v_mem_cen          (v_mem_cen),          // V memory enable
+  .v_mem_wen          (v_mem_wen),          // V memory write enable
+  .v_mem_addr         (v_mem_addr)          // V memory address
 );
 // Stage 2: Memory Access (read weights from on-chip SRAM)
 MemAccess mem_access (
@@ -280,14 +334,23 @@ MemAccess mem_access (
   .comp_en_mem        (comp_en_mem),        // computation enable (mem)
   .in_act_value_mem   (in_act_value_mem),   // input activation value (mem)
   .out_act_addr_mem   (out_act_addr_mem),   // output activation address
+  // W memory
   .w_mem_cen          (w_mem_cen),          // weight memory enable
   .w_mem_wen          (w_mem_wen),          // weight memory write enable
   .w_mem_addr         (w_mem_addr),         // weight memory address
+  // U memory
+  .u_mem_cen          (u_mem_cen),          // U memory enable
+  .u_mem_wen          (u_mem_wen),          // U memory write enable
+  .u_mem_addr         (u_mem_addr),         // U memory address
+  // V memory
+  .v_mem_cen          (v_mem_cen),          // V memory enable
+  .v_mem_wen          (v_mem_wen),          // V memory write enable
+  .v_mem_addr         (v_mem_addr),         // V memory address
 
   // Output datapath & control path (mult stage)
   .comp_en_mult       (comp_en_mult),       // computation enable (mult)
-  .in_act_value_mult  (in_act_value_mult),  // input activation value (mult)
-  .w_value_mult       (w_value_mult),       // weight value
+  .in_act_value_mult  (in_act_value_mult),  // operand: in act (mult)
+  .mem_value_mult     (mem_value_mult),     // operand: mem data (mult)
   .out_act_addr_mult  (out_act_addr_mult)   // output activation address
 );
 // Stage 3: activation & weights multiplication (MULT)
@@ -298,7 +361,7 @@ Mult mult (
   // Input datapath & control path (mult stage)
   .comp_en_mult       (comp_en_mult),       // computation enable
   .in_act_value_mult  (in_act_value_mult),  // input activation value
-  .w_value_mult       (w_value_mult),       // weight value
+  .mem_value_mult     (mem_value_mult),     // memory value
   .out_act_addr_mult  (out_act_addr_mult),  // output activation address
 
   // Output datapath & control path (add stage)
@@ -318,7 +381,7 @@ Add add (
   .out_act_addr_add   (out_act_addr_add),   // output activation address
 
   // Output datapath & control path (wb stage)
-  .comp_en_wb         (comp_en_wb),         // computation enable
+  .out_act_write_en   (out_act_write_en),   // output act write enable
   .out_act_addr_wb    (out_act_addr_wb),    // output activation address
   .add_result_wb      (add_result_wb)       // addition result
 );
@@ -327,7 +390,6 @@ Add add (
 // ----------------------------
 // Activation register files
 // ----------------------------
-// TODO: finish connections
 ActRegFile act_reg_file (
   .PE_IDX             (PE_IDX),             // PE index
   .clk                (clk),                // system clock
@@ -346,9 +408,14 @@ ActRegFile act_reg_file (
   .out_act_read_en    (out_act_read_en),    // read enable
   .out_act_read_addr  (out_act_read_addr),  // read address
   .out_act_read_data  (out_act_read_data),  // read data
-  .out_act_write_en   (comp_en_wb),         // write enable
+  .out_act_write_en   (out_act_write_en),   // write enable
   .out_act_write_addr (out_act_addr_wb),    // write address
-  .out_act_write_data (add_result_wb)       // write data
+  .out_act_write_data (add_result_wb),      // write data
+  .out_act_g_zeros    (out_act_g_zeros),    // >= 0 flags
+  // output activations secondary read port
+  .out_act_read_en_s  (out_act_read_en_s),  // read enable (secondary)
+  .out_act_read_addr_s(out_act_read_addr_s),// read address (secondary)
+  .out_act_read_data_s(out_act_read_data_s) // read data (secondary)
 );
 // Activation Read Mux Logic
 ActRegFileOutMux act_reg_file_out_mux (

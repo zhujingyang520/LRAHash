@@ -48,6 +48,9 @@ wire [`DIRECTION-1:0] sa_grant;
 // ST
 wire [`DIRECTION*`ROUTER_WIDTH-1:0] st_data_in;
 wire [`DIRECTION*`DIRECTION-1:0] st_ctrl_in;
+// Merge
+wire merge_en;
+wire [`ROUTER_WIDTH-1:0] merge_data;
 // Output unit
 wire [`DIRECTION-1:0] out_unit_en;
 wire [`DIRECTION*`ROUTER_WIDTH-1:0] st_data_out;
@@ -128,6 +131,18 @@ Switch switch (
   .st_data_out      (st_data_out)                 // switch output
 );
 
+// -------------------
+// Router merge stage
+// -------------------
+RouterMerge router_merge (
+  // switch data input, excluding LOCAL port
+  .st_data_in       (st_data_in[(`DIRECTION-1)*`ROUTER_WIDTH-1:0]),
+
+  .merge_en         (merge_en),                   // merge enable
+  .merge_data       (merge_data)                  // merge data
+);
+
+
 // --------------
 // Output unit
 // --------------
@@ -152,6 +167,8 @@ OutputUnit #(
   // data path
   .out_unit_en      (out_unit_en[g]),             // output unit update enable
   .st_data_out      (st_data_out[g*`ROUTER_WIDTH +: `ROUTER_WIDTH]),
+  .merge_en         (merge_en),                   // merge path enable
+  .merge_data       (merge_data),                 // merge data path
   .out_data         (out_data[g*`ROUTER_WIDTH +: `ROUTER_WIDTH]),
   .out_data_valid   (out_data_valid[g])           // output unit data valid
 );

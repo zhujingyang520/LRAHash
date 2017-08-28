@@ -56,6 +56,10 @@ if (level == `LEVEL_ROOT) begin: gen_root_rc
         // broadcast to all 4 children when finish computation
         route_port      = 5'b01111;
       end
+      else if (rc_en && route_info == `ROUTER_INFO_UV) begin
+        // broadcast to all 4 children for LOCAL direction
+        route_port      = 5'b01111;
+      end
     end else begin  // nonlocal direction
       if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
         // broadcast to all 4 children when doing calculation
@@ -70,6 +74,10 @@ if (level == `LEVEL_ROOT) begin: gen_root_rc
         route_port      = 5'b10000;
       end
       else if (rc_en && route_info == `ROUTER_INFO_READ) begin
+        // send to the root node
+        route_port      = 5'b10000;
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_UV) begin
         // send to the root node
         route_port      = 5'b10000;
       end
@@ -116,6 +124,10 @@ else if (level == `LEVEL_INTERNAL) begin: gen_internal_rc
         // broadcast finish computation to 4 children
         route_port      = 5'b01111;
       end
+      else if (rc_en && route_info == `ROUTER_INFO_UV) begin
+        // broadcast to 4 children for UV computation
+        route_port      = 5'b01111;
+      end
     end else begin    // nonlocal port
       if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
         // route to the root during broadcast for the nonlocal port
@@ -131,6 +143,10 @@ else if (level == `LEVEL_INTERNAL) begin: gen_internal_rc
       end
       else if (rc_en && route_info == `ROUTER_INFO_READ) begin
         // route to the root for reading activations
+        route_port      = 5'b10000;
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_UV) begin
+        // route to the root node for UV computation
         route_port      = 5'b10000;
       end
     end
@@ -175,6 +191,10 @@ else if (level == `LEVEL_LEAF) begin: gen_internal_rc
         // broadcast finish computation to 4 children
         route_port      = 5'b01111;
       end
+      else if (rc_en && route_info == `ROUTER_INFO_UV) begin
+        // broadcast to 4 children for UV
+        route_port      = 5'b01111;
+      end
     end else begin    // nonlocal port
       if (rc_en && route_info == `ROUTER_INFO_BROADCAST) begin
         // route to the root during broadcast for the nonlocal port
@@ -190,6 +210,10 @@ else if (level == `LEVEL_LEAF) begin: gen_internal_rc
       end
       else if (rc_en && route_info == `ROUTER_INFO_READ) begin
         // route to the root for reading activations
+        route_port      = 5'b10000;
+      end
+      else if (rc_en && route_info == `ROUTER_INFO_UV) begin
+        // route to the root node for UV computation
         route_port      = 5'b10000;
       end
     end

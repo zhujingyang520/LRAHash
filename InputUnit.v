@@ -160,6 +160,10 @@ endgenerate
 // ------------------------------------
 // Arbitration of Routing Computation
 // ------------------------------------
+generate
+if (`ROUTER_FIFO_SPLIT == 1) begin: gen_rc_arbiter_split_one
+assign rc_grant_split = rc_request_split;
+end else begin: gen_rc_arbiter_split_non_one
 RoundRobinArbiter #(
   .N                (`ROUTER_FIFO_SPLIT)          // bit number
 ) rc_arbiter (
@@ -168,10 +172,13 @@ RoundRobinArbiter #(
   .request          (rc_request_split),           // request
   .grant            (rc_grant_split)              // grant
 );
+end
+endgenerate
 
 // ------------------------------------
 // Arbitration of Switch Allocation
 // ------------------------------------
+/*
 RoundRobinArbiter #(
   .N                (`ROUTER_FIFO_SPLIT)          // bit number
 ) sa_arbiter (
@@ -180,7 +187,43 @@ RoundRobinArbiter #(
   .request          (sa_request_split),           // request
   .grant            (sa_grant_split)              // grant
 );
+*/
 
+wire [`ROUTER_FIFO_SPLIT-1:0] sa_priority;
+generate
+if (`ROUTER_FIFO_SPLIT == 1) begin: gen_sa_priority_split_1
+  assign sa_priority = 1'b1;
+end else if (`ROUTER_FIFO_SPLIT == 2) begin: gen_sa_priority_split_2
+  wire [`ROUTER_INFO_WIDTH+12-1:0]  split_0_priority,
+                                    split_1_priority;
+  assign split_0_priority = {
+    sa_info_split[`ROUTER_INFO_WIDTH-1:0],
+    // Hardcode the index
+    sa_addr_split[11:0]
+  };
+  assign split_1_priority = {
+    sa_info_split[2*`ROUTER_INFO_WIDTH-1:`ROUTER_INFO_WIDTH],
+    // Hardcode the index
+    sa_addr_split[`ROUTER_ADDR_WIDTH+11:`ROUTER_ADDR_WIDTH]
+  };
+  assign sa_priority = (split_0_priority < split_1_priority) ? 2'b01 : 2'b10;
+end
+else begin: gen_sa_priority_undef_split
+  // synopsys translate_off
+  initial begin
+    $display("ERROR: undefined input buffer split");
+    $finish;
+  end
+  // synopsys translate_on
+end
+endgenerate
+PriorityArbiter # (
+  .N                (`ROUTER_FIFO_SPLIT)          // bit number
+) sa_arbiter (
+  .request          (sa_request_split),           // request
+  .p                (sa_priority),                // priority (one-hot encoding)
+  .grant            (sa_grant_split)              // grant
+);
 
 // --------------------------------------------------------------
 // Input Unit Mux: select the arbitrated signals from the splits

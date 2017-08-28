@@ -32,10 +32,11 @@
 // Routing infomation
 `define ROUTER_INFO_CONFIG  4'd0        // configuration packet
 `define ROUTER_INFO_CALC 4'd1           // calculation packet
-`define ROUTER_INFO_BROADCAST 4'd2      // broadcast packet
-`define ROUTER_INFO_FIN_BROADCAST 4'd3  // finish broadcast
-`define ROUTER_INFO_FIN_COMP 4'd4       // finish computation
-`define ROUTER_INFO_READ 4'd5           // read register files
+`define ROUTER_INFO_UV 4'd2             // UV path
+`define ROUTER_INFO_BROADCAST 4'd3      // broadcast packet
+`define ROUTER_INFO_FIN_BROADCAST 4'd4  // finish broadcast
+`define ROUTER_INFO_FIN_COMP 4'd5       // finish computation
+`define ROUTER_INFO_READ 4'd6           // read register files
 // Router FIFO depth
 `define ROUTER_FIFO_DEPTH 4
 // Router FIFO split (resolve the bubble caused by back-to-back packet stall)

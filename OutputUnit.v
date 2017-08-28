@@ -23,6 +23,8 @@ module OutputUnit #(
   // data path
   input wire                      out_unit_en,    // output unit update enable
   input wire  [`ROUTER_WIDTH-1:0] st_data_out,    // ST data output
+  input wire                      merge_en,       // merge path enable
+  input wire  [`ROUTER_WIDTH-1:0] merge_data,     // merge data path
   output reg  [`ROUTER_WIDTH-1:0] out_data,       // output unit data output
   output reg                      out_data_valid  // output unit data valid
 );
@@ -30,6 +32,28 @@ module OutputUnit #(
 // -------------------
 // Datapath registers
 // -------------------
+generate
+if (direction == `DIR_LOCAL) begin: gen_output_datapath_local
+
+always @ (posedge clk or posedge rst) begin
+  if (rst) begin
+    out_data_valid  <= 1'b0;
+    out_data        <= 0;
+  end else if (merge_en) begin
+    out_data_valid  <= 1'b1;
+    out_data        <= merge_data;
+  end else if (out_unit_en) begin
+    out_data_valid  <= 1'b1;
+    out_data        <= st_data_out;
+  end else begin
+    out_data_valid  <= 1'b0;
+    out_data        <= 0;
+  end
+end
+
+end
+else begin: gen_output_datapath_nonlocal
+
 always @ (posedge clk or posedge rst) begin
   if (rst) begin
     out_data_valid  <= 1'b0;
@@ -42,6 +66,9 @@ always @ (posedge clk or posedge rst) begin
     out_data        <= 0;
   end
 end
+
+end
+endgenerate
 
 // -------------------------------------------
 // Credit count for the downstreaming buffer

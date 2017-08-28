@@ -137,6 +137,14 @@ always @ (*) begin
     // synopsys translate_off
     $display("@%t PE[%d] receives finish broadcast packet", $time, PE_IDX);
     // synopsys translate_on
+  end else if (in_data_valid && route_info == `ROUTER_INFO_UV) begin
+    // push the V calculation results into the activation queue as well
+    push_act          = 1'b1;
+    act               = {route_addr[`PE_ADDR_WIDTH-1:0], route_data};
+    // synopsys translate_off
+    $display("@%t PE[%d] receives UV[%d] = %d", $time, PE_IDX, route_addr,
+      $signed(route_data));
+    // synopsys translate_on
   end else begin
     push_act          = 1'b0;
     act               = 0;

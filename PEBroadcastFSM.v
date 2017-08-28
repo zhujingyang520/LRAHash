@@ -93,6 +93,8 @@ always @ (*) begin
           state_next      = STATE_IDLE;
           act_send_en     = 1'b1;
           act_send_data   = {10'b0, PE_IDX};
+          // guarantee the finish broadcast will be sent with the lowest
+          // priority
           act_send_addr[`ROUTER_ADDR_WIDTH-1] = 1'b1;
         end else begin
           state_next      = STATE_TRAN_ACT;

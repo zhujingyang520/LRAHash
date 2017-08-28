@@ -7,6 +7,7 @@
 // =============================================================================
 
 `include "router.vh"
+`include "pe.vh"
 
 module SwitchAllocator (
   input wire  [`DIRECTION-1:0]      sa_request,           // SA request
@@ -156,8 +157,26 @@ end
 // ------------------
 // grant outputs
 // ------------------
+wire [3:0] sa_uv_merge;
+assign sa_uv_merge[`DIR_NW] = (sa_info_dir[`DIR_NW] == `ROUTER_INFO_UV);
+assign sa_uv_merge[`DIR_NE] = (sa_info_dir[`DIR_NE] == `ROUTER_INFO_UV);
+assign sa_uv_merge[`DIR_SE] = (sa_info_dir[`DIR_SE] == `ROUTER_INFO_UV);
+assign sa_uv_merge[`DIR_SW] = (sa_info_dir[`DIR_SW] == `ROUTER_INFO_UV);
+wire sa_uv_addr_equal = (sa_addr_dir[`DIR_NW][`RankBus] ==
+  sa_addr_dir[`DIR_NE][`RankBus]) && (sa_addr_dir[`DIR_SE][`RankBus] ==
+  sa_addr_dir[`DIR_SW][`RankBus]) && (sa_addr_dir[`DIR_NW][`RankBus] ==
+  sa_addr_dir[`DIR_SW][`RankBus]);
 always @ (*) begin
-  if (dir_level_1 == `DIR_NW) begin
+  // special case: deal with UV merge operation
+  if (|sa_uv_merge) begin
+    if (&sa_uv_merge && sa_uv_addr_equal) begin
+      // only grant when all 4 port data are merged
+      sa_grant[3:0]   = 4'b1111;
+    end else begin
+      sa_grant[3:0]   = 4'b0000;
+    end
+  end
+  else if (dir_level_1 == `DIR_NW) begin
     sa_grant[3:0]     = 4'b0001;
   end else if (dir_level_1 == `DIR_NE) begin
     sa_grant[3:0]     = 4'b0010;

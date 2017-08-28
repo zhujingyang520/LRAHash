@@ -28,7 +28,12 @@ module ActRegFile (
   output reg  [`PeDataBus]      out_act_read_data,  // read data
   input wire                    out_act_write_en,   // write enable
   input wire  [`PeActNoBus]     out_act_write_addr, // write address
-  input wire  [`PeDataBus]      out_act_write_data  // write data
+  input wire  [`PeDataBus]      out_act_write_data, // write data
+  output reg  [`PE_ACT_NO-1:0]  out_act_g_zeros,    // > 0 flags
+  // output activations secondary read port
+  input wire                    out_act_read_en_s,  // read enable (secondary)
+  input wire  [`PeActNoBus]     out_act_read_addr_s,// read address (secondary)
+  output reg  [`PeDataBus]      out_act_read_data_s // read data (secondary)
 );
 
 genvar g;
@@ -44,28 +49,41 @@ reg write_en [1:0];
 reg [`PeActNoBus] write_addr [1:0];
 reg [`PeDataBus] write_data [1:0];
 wire [`PE_ACT_NO-1:0] zeros [1:0];
+wire [`PE_ACT_NO-1:0] g_zeros [1:0];
+// secondary read interconnections
+reg read_en_s [1:0];
+reg [`PeActNoBus] read_addr_s [1:0];
+wire [`PeDataBus] read_data_s [1:0];
 
 // ----------------------------------
 // Instantiation of 2 register files
 // ----------------------------------
 generate
 for (g = 0; g < 2; g = g + 1) begin: gen_reg_file
-RegFile #(
+// Use 2RP register file
+RegFile2RP #(
   .BIT_WIDTH          (`PE_DATA_WIDTH),       // bit width of the entry
   .REG_DEPTH          (`PE_ACT_NO)            // register file depth
 ) reg_file (
   .clk                (clk),                  // system clock
   .clear              (clear[g]),             // clear
   // read interface
-  .read_en            (read_en[g]),           // read enable (active high)
-  .read_addr          (read_addr[g]),         // read address
-  .read_data          (read_data[g]),         // read data
+  // RP0
+  .read_en_0          (read_en[g]),           // read enable (active high)
+  .read_addr_0        (read_addr[g]),         // read address
+  .read_data_0        (read_data[g]),         // read data
+  // RP1
+  .read_en_1          (read_en_s[g]),         // read enable (active high)
+  .read_addr_1        (read_addr_s[g]),       // read address
+  .read_data_1        (read_data_s[g]),       // read data
   // write interface
   .write_en           (write_en[g]),          // write enable (active high)
   .write_addr         (write_addr[g]),        // write address
   .write_data         (write_data[g]),        // write data
   // zero detection flag
-  .zeros              (zeros[g])              // zero flag for detection
+  .zeros              (zeros[g]),             // zero flag for detection
+  // greater than 0 detection
+  .g_zeros            (g_zeros[g])            // > zeros flag for detection
 );
 end
 endgenerate
@@ -95,6 +113,7 @@ always @ (*) begin
     write_data[1] = out_act_write_data;
     // zero flags
     in_act_zeros = zeros[0];
+    out_act_g_zeros = g_zeros[1];
   end else begin
     // ACT_DIR_1: act[0]: out; act[1]: in
     // clear operation
@@ -116,6 +135,25 @@ always @ (*) begin
     write_data[0] = out_act_write_data;
     // zero flags
     in_act_zeros = zeros[1];
+    out_act_g_zeros = g_zeros[0];
+  end
+end
+// Multiplexer for the secondary read port
+always @ (*) begin
+  if (dir == `ACT_DIR_0) begin
+    // ACT_DIR_0: act[0]: in; act[1]: out
+    read_en_s[0]        = 1'b0;
+    read_addr_s[0]      = 0;
+    read_en_s[1]        = out_act_read_en_s;
+    read_addr_s[1]      = out_act_read_addr_s;
+    out_act_read_data_s = read_data_s[1];
+  end else begin
+    // ACT_DIR_1: act[0]: out; act[1]: in
+    read_en_s[0]        = out_act_read_en_s;
+    read_addr_s[0]      = out_act_read_addr_s;
+    read_en_s[1]        = 1'b0;
+    read_addr_s[1]      = 0;
+    out_act_read_data_s = read_data_s[0];
   end
 end
 

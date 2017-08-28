@@ -12,13 +12,13 @@ module Mult (
   input wire                  rst,                // system reset (active high)
 
   // Input datapath & control path (mult stage)
-  input wire                  comp_en_mult,       // computation enable
+  input wire  [`CompEnBus]    comp_en_mult,       // computation enable
   input wire  [`PeDataBus]    in_act_value_mult,  // input activation value
-  input wire  [`PeDataBus]    w_value_mult,       // weight value
+  input wire  [`PeDataBus]    mem_value_mult,     // memory value
   input wire  [`PeActNoBus]   out_act_addr_mult,  // output activation address
 
   // Output datapath & control path (add stage)
-  output reg                  comp_en_add,        // computation enable
+  output reg  [`CompEnBus]    comp_en_add,        // computation enable
   output reg  [`PeActNoBus]   out_act_addr_add,   // output activation address
   output reg  [`PeDataBus]    mult_result_add     // multiplication result
 );
@@ -32,14 +32,14 @@ wire [`PeDataBus] mult_result;
 // Do the multiplication here. (Rely on the Synethsize Tool, e.g. Designware, to
 // infer a constrain-driven design.
 // -----------------------------------------------------------------------------
-assign mult_result = $signed(in_act_value_mult) * $signed(w_value_mult);
+assign mult_result = $signed(in_act_value_mult) * $signed(mem_value_mult);
 
 // -----------------------
 // Output pipeline stage
 // -----------------------
 always @ (posedge clk or posedge rst) begin
   if (rst) begin
-    comp_en_add       <= 1'b0;
+    comp_en_add       <= `COMP_EN_IDLE;
     out_act_addr_add  <= 0;
     mult_result_add   <= 0;
   end else begin

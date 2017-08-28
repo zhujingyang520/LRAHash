@@ -23,7 +23,7 @@
 `define PeAddrBus `PE_ADDR_WIDTH-1:0
 
 // PE state registers
-`define PE_STATUS_ADDR_WIDTH 6
+`define PE_STATUS_ADDR_WIDTH 7
 `define PeStatusAddrBus `PE_STATUS_ADDR_WIDTH-1:0
 `define PE_STATUS_DATA_WIDTH 16
 `define PeStatusDataBus `PE_STATUS_DATA_WIDTH-1:0
@@ -38,6 +38,9 @@
 `define PE_REAL_W_NO_WIDTH 14     // Real weight number width for each layer
 `define PeRealWNoBus `PE_REAL_W_NO_WIDTH-1:0
 
+`define RANK_WIDTH 6              // Rank size width
+`define RankBus `RANK_WIDTH-1:0
+
 // Activation registers in/out direction
 `define ACT_DIR_0 1'b0            // act[0]: in; act[1]: out
 `define ACT_DIR_1 1'b1            // act[0]: out; act[0]: in
@@ -48,10 +51,33 @@
 `define PE_QUEUE_DEPTH 8
 `define PE_QUEUE_DEPTH_WIDTH 4    // clog2(PE_QUEUE_DEPTH)
 
+// Computation datapath ENABLE (extend to support UV computation scheme)
+`define COMP_EN_WIDTH 2
+`define CompEnBus `COMP_EN_WIDTH-1:0
+`define COMP_EN_IDLE `COMP_EN_WIDTH'd0  // Computation enable: idle
+`define COMP_EN_W `COMP_EN_WIDTH'd1     // Computation enable: W
+`define COMP_EN_U `COMP_EN_WIDTH'd2     // Computation enable: U
+`define COMP_EN_V `COMP_EN_WIDTH'd3     // Computation enable: V
+
 // Weight memory address width
+// W memory
 `define W_MEM_ADDR_WIDTH 16
 `define WMemAddrBus `W_MEM_ADDR_WIDTH-1:0
 `define W_MEM_DATA_WIDTH `PE_DATA_WIDTH
 `define WMemDataBus `W_MEM_DATA_WIDTH-1:0
+// UV memory
+`define UV_MEM_ADDR_WIDTH 12
+`define UVMemAddrBus `UV_MEM_ADDR_WIDTH-1:0
+`define U_MEM_ADDR_WIDTH `UV_MEM_ADDR_WIDTH
+`define U_MEM_DATA_WIDTH `PE_DATA_WIDTH
+`define UMemAddrBus `U_MEM_ADDR_WIDTH-1:0
+`define V_MEM_ADDR_WIDTH `UV_MEM_ADDR_WIDTH
+`define V_MEM_DATA_WIDTH `PE_DATA_WIDTH
+`define VMemAddrBus `V_MEM_ADDR_WIDTH-1:0
+
+// ---------------------------
+// Computation pipeline stage
+// ---------------------------
+`define COMP_PIPE_STAGE 5
 
 `endif

@@ -28,11 +28,17 @@ module PEStateReg (
   output wire [`PeActNoBus]       in_act_no,    // input activation no.
   output wire [`PeActNoBus]       out_act_no,   // output activation no.
   output wire [`PeAddrBus]        col_dim,      // column dimension
-  output wire [`WMemAddrBus]      w_mem_offset  // weight memory address offset
+  output wire [`WMemAddrBus]      w_mem_offset, // weight memory address offset
+
+  // output uv calculation related parameters
+  output wire                     uv_en,        // uv enable
+  output wire [`RankBus]          rank_no,      // rank number
+  output wire [`UMemAddrBus]      u_mem_offset, // u memory address offset
+  output wire [`VMemAddrBus]      v_mem_offset  // v memory address offset
 );
 
 // Max layer no: 2 ^ layer no bus width
-localparam MAX_LAYER_NO = 2**`PE_LAYER_NO_WIDTH;
+localparam integer MAX_LAYER_NO = 2**`PE_LAYER_NO_WIDTH;
 
 // --------------------------------
 // State registers definition
@@ -44,6 +50,15 @@ reg [`PeActNoBus] act_no_reg [MAX_LAYER_NO-1:0];
 reg [`PeAddrBus] col_dim_reg [MAX_LAYER_NO-2:0];
 // address offset for each layer (no. = max layer no. - 1)
 reg [`WMemAddrBus] w_mem_offset_reg [MAX_LAYER_NO-2:0];
+// ----------------------
+// UV related parameters
+// ----------------------
+reg [MAX_LAYER_NO-1:0] uv_en_reg;         // UV path enable register
+// rank size @ each layer (no. = max layer no. - 2, excluding output layer)
+reg [`RankBus] rank_no_reg [MAX_LAYER_NO-3:0];
+// address offset for each layer (no. = max layer no. - 2, excluding output)
+reg [`UMemAddrBus] u_mem_offset_reg [MAX_LAYER_NO-3:0];
+reg [`VMemAddrBus] v_mem_offset_reg [MAX_LAYER_NO-3:0];
 
 // -------------------------------------
 // Configuration of status registers
@@ -62,6 +77,17 @@ always @ (posedge clk or posedge rst) begin
     end
     for (i = 0; i < MAX_LAYER_NO-1; i = i + 1) begin
       w_mem_offset_reg[i] <= 0;
+    end
+    // uv matrix setting
+    uv_en_reg         <= 0;
+    for (i = 0; i < MAX_LAYER_NO-2; i = i + 1) begin
+      rank_no_reg[i]  <= 0;
+    end
+    for (i = 0; i < MAX_LAYER_NO-2; i = i + 1) begin
+      u_mem_offset_reg[i] <= 0;
+    end
+    for (i = 0; i < MAX_LAYER_NO-2; i = i + 1) begin
+      v_mem_offset_reg[i] <= 0;
     end
   end else if (write_en) begin
     case (write_addr)
@@ -221,6 +247,137 @@ always @ (posedge clk or posedge rst) begin
         // synopsys translate_on
       end
 
+      `PE_STATUS_ADDR_WIDTH'd38: begin  // [38]: {rank_no[1], rank_no[0]}
+        rank_no_reg[1]      <= write_data[13:8];
+        rank_no_reg[0]      <= write_data[5:0];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: rank no[1] = %d; rank_no[0] = %d",
+          $time, PE_IDX, write_data[13:8], write_data[5:0]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd40: begin  // [40]: {rank_no[3], rank_no[2]}
+        rank_no_reg[3]      <= write_data[13:8];
+        rank_no_reg[2]      <= write_data[5:0];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: rank no[3] = %d; rank_no[2] = %d",
+          $time, PE_IDX, write_data[13:8], write_data[5:0]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd42: begin  // [42]: {rank_no[5], rank_no[4]}
+        rank_no_reg[5]      <= write_data[13:8];
+        rank_no_reg[4]      <= write_data[5:0];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: rank no[5] = %d; rank_no[4] = %d",
+          $time, PE_IDX, write_data[13:8], write_data[5:0]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd44: begin  // [44]: v_mem_offset[0]
+        v_mem_offset_reg[0] <= write_data[`VMemAddrBus];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: v_mem_offset[0] = %d", $time, PE_IDX,
+          write_data[`VMemAddrBus]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd46: begin  // [46]: v_mem_offset[1]
+        v_mem_offset_reg[1] <= write_data[`VMemAddrBus];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: v_mem_offset[1] = %d", $time, PE_IDX,
+          write_data[`VMemAddrBus]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd48: begin  // [48]: v_mem_offset[2]
+        v_mem_offset_reg[2] <= write_data[`VMemAddrBus];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: v_mem_offset[2] = %d", $time, PE_IDX,
+          write_data[`VMemAddrBus]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd50: begin  // [50]: v_mem_offset[3]
+        v_mem_offset_reg[3] <= write_data[`VMemAddrBus];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: v_mem_offset[3] = %d", $time, PE_IDX,
+          write_data[`VMemAddrBus]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd52: begin  // [52]: v_mem_offset[4]
+        v_mem_offset_reg[4] <= write_data[`VMemAddrBus];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: v_mem_offset[4] = %d", $time, PE_IDX,
+          write_data[`VMemAddrBus]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd54: begin  // [54]: v_mem_offset[5]
+        v_mem_offset_reg[5] <= write_data[`VMemAddrBus];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: v_mem_offset[5] = %d", $time, PE_IDX,
+          write_data[`VMemAddrBus]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd56: begin  // [56]: u_mem_offset[0]
+        u_mem_offset_reg[0] <= write_data[`UMemAddrBus];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: u_mem_offset[0] = %d", $time, PE_IDX,
+          write_data[`UMemAddrBus]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd58: begin  // [58]: u_mem_offset[1]
+        u_mem_offset_reg[1] <= write_data[`UMemAddrBus];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: u_mem_offset[1] = %d", $time, PE_IDX,
+          write_data[`UMemAddrBus]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd60: begin  // [60]: u_mem_offset[2]
+        u_mem_offset_reg[2] <= write_data[`UMemAddrBus];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: u_mem_offset[2] = %d", $time, PE_IDX,
+          write_data[`UMemAddrBus]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd62: begin  // [62]: u_mem_offset[3]
+        u_mem_offset_reg[3] <= write_data[`UMemAddrBus];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: u_mem_offset[3] = %d", $time, PE_IDX,
+          write_data[`UMemAddrBus]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd64: begin  // [64]: u_mem_offset[4]
+        u_mem_offset_reg[4] <= write_data[`UMemAddrBus];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: u_mem_offset[4] = %d", $time, PE_IDX,
+          write_data[`UMemAddrBus]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd66: begin  // [66]: u_mem_offset[5]
+        u_mem_offset_reg[5] <= write_data[`UMemAddrBus];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: u_mem_offset[5] = %d", $time, PE_IDX,
+          write_data[`UMemAddrBus]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd68: begin  // [68]: uv_en
+        uv_en_reg           <= write_data[MAX_LAYER_NO-1:0];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: uv_en = %d", $time, PE_IDX,
+          write_data[MAX_LAYER_NO-1:0]);
+        // synopsys translate_on
+      end
+
       default: begin
         /* Keep the original value */
       end
@@ -236,5 +393,10 @@ assign in_act_no = act_no_reg[layer_idx];
 assign out_act_no = act_no_reg[layer_idx + 1];
 assign col_dim = col_dim_reg[layer_idx];
 assign w_mem_offset = w_mem_offset_reg[layer_idx];
+// UV related parameters
+assign uv_en = uv_en_reg[layer_idx];
+assign rank_no = rank_no_reg[layer_idx];
+assign u_mem_offset = u_mem_offset_reg[layer_idx];
+assign v_mem_offset = v_mem_offset_reg[layer_idx];
 
 endmodule

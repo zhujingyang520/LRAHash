@@ -46,6 +46,11 @@ module NetworkInterface (
   output wire                     pe_start_calc,      // PE start calculation
   output wire                     router_rdy,         // router is ready to send
   output wire                     comp_done,          // layer computation done
+  // partial sum broadcast path
+  input wire                      part_sum_send_en,   // partial sum send enable
+  input wire  [`ROUTER_ADDR_WIDTH-1:0]
+                                  part_sum_send_addr, // partial sum send addr
+  input wire  [`PeDataBus]        part_sum_send_data, // partial sum send data
 
   // Activation queue interface
   input wire                      pop_act,            // pop activation
@@ -110,6 +115,10 @@ NIOutputUnit ni_output_unit (
   .act_send_addr          (act_send_addr),            // act send address
   .act_send_data          (act_send_data),            // act send data
   .fin_comp               (fin_comp),                 // finish computation
+  // partial sum broadcast path
+  .part_sum_send_en       (part_sum_send_en),
+  .part_sum_send_addr     (part_sum_send_addr),
+  .part_sum_send_data     (part_sum_send_data),
 
   // NI read request interface
   .read_rqst_read_en      (read_rqst_read_en),        // read rqst read enable

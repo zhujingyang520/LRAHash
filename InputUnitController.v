@@ -59,6 +59,20 @@ reg in_credit_reg, in_credit_next;
 // switch traversal interfaces
 reg [`DIRECTION-1:0] st_ctrl_in_reg, st_ctrl_in_next;
 reg [`ROUTER_WIDTH-1:0] st_data_in_reg, st_data_in_next;
+// switch traversal register (reduce the critical path)
+reg [`ROUTER_INFO_WIDTH-1:0] route_info_reg, route_info_next;
+reg [`ROUTER_ADDR_WIDTH-1:0] route_addr_reg, route_addr_next;
+
+// SA routing registers
+always @ (posedge clk or posedge rst) begin
+  if (rst) begin
+    route_info_reg    <= 0;
+    route_addr_reg    <= 0;
+  end else begin
+    route_info_reg    <= route_info_next;
+    route_addr_reg    <= route_addr_next;
+  end
+end
 
 // -----------
 // FSM states
@@ -120,6 +134,9 @@ always @ (*) begin
   st_ctrl_in_next   = 0;
   st_data_in_next   = 0;
 
+  route_info_next   = route_info_reg;
+  route_addr_next   = route_addr_reg;
+
   case (state_reg)
     STATE_IDLE: begin
       if (fifo_write_en || !fifo_empty) begin
@@ -132,6 +149,9 @@ always @ (*) begin
       rc_request    = 1'b1;
       route_info    = fifo_data[35:32];
       route_addr    = fifo_data[31:16];
+      // store the info & address
+      route_info_next = fifo_data[35:32];
+      route_addr_next = fifo_data[31:16];
       if (rc_grant) begin
         // use the routing results computated by RC module
         route_next  = route_port;
@@ -142,14 +162,12 @@ always @ (*) begin
 
     STATE_ACTIVE: begin
       // hardcode the address index
+      sa_info           = route_info_reg;
+      sa_addr           = route_addr_reg;
       if ((out_credit_avail & route_reg) == route_reg) begin
         sa_request      = 1'b1;
-        sa_info         = fifo_data[35:32];
-        sa_addr         = fifo_data[31:16];
       end else begin
         sa_request      = 1'b0;
-        sa_info         = 0;
-        sa_addr         = 0;
       end
       if (sa_grant) begin
         if (!fifo_empty_next) begin

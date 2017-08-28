@@ -31,6 +31,10 @@ reg [`AddrBus] read_addr;
 reg read_data_rdy;
 wire read_data_vld;
 wire [`ReadDataBus] read_data;
+// read data monitor file pointer
+integer read_data_fp;
+// time step for execution time
+integer start_time_step, stop_time_step;
 
 // --------------------
 // UUT instantiation
@@ -82,25 +86,39 @@ initial begin
   $display("Read out_act_no=%d", out_act_no);
   $fclose(fp);
 
-  w_mem_init;               // memory initialization
+  // memory initialization
+  w_mem_init;
+  u_mem_init;
+  v_mem_init;
+
   init(2);                  // reset for 2 clock cycles
   config_op("config.dat");  // write the configuration info
 
   wait(interrupt == 1'b1);
+  stop_time_step = $time;
   #(CLK_PERIOD*100);
   read_out_act(out_act_no);
 
-  #(CLK_PERIOD*1000);
+  #(CLK_PERIOD*100);
+  $fclose(read_data_fp);
+
+  $display("Execution Time: start = %0d, stop = %0d, cycle = %0d",
+    start_time_step, stop_time_step, (stop_time_step - start_time_step)
+    / CLK_PERIOD);
   $finish;
 end
 
 // --------------------
 // Read data monitor
 // --------------------
+initial begin
+  read_data_fp = $fopen("read.dat", "w");
+end
 always @ (posedge clk) begin
   if (read_data_vld && read_data_rdy) begin
     $display("@%t Testbench received Act[%d] = %d", $time,
       read_data[27:16], $signed(read_data[15:0]));
+    $fwrite(read_data_fp, "%0d\n", $signed(read_data[15:0]));
   end
 end
 
@@ -227,6 +245,8 @@ task config_op;
       end
       write_op(addr, data);
     end
+    // - half clock cycle due to the write operation
+    start_time_step = $time - CLK_PERIOD/2.0;
     $display("# finish configuration");
     $display("#######################################");
   end

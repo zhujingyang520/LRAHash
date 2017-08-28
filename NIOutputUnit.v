@@ -18,6 +18,10 @@ module NIOutputUnit (
   input wire  [`ROUTER_ADDR_WIDTH-1:0]  act_send_addr,// act send address
   input wire  [`PeDataBus]              act_send_data,// act send data
   input wire                            fin_comp,     // finish computation
+  // partial sum broadcast path
+  input wire                            part_sum_send_en,
+  input wire  [`ROUTER_ADDR_WIDTH-1:0]  part_sum_send_addr,
+  input wire  [`PeDataBus]              part_sum_send_data,
 
   // NI read request interface
   input wire                            read_rqst_read_en,
@@ -61,6 +65,11 @@ always @ (posedge clk or posedge rst) begin
       out_data[31:16] <= act_send_addr;
       out_data[15:0]  <= act_send_data;
     end
+  end else if (part_sum_send_en) begin
+    out_data_valid    <= 1'b1;
+    out_data[35:32]   <= `ROUTER_INFO_UV;
+    out_data[31:16]   <= part_sum_send_addr;
+    out_data[15:0]    <= part_sum_send_data;
   end else if (fin_comp) begin
     // special packet of `FIN_COMP`
     out_data_valid    <= 1'b1;
@@ -81,13 +90,15 @@ end
 
 // -------------------------------------------------------------
 // Maintain the credit count for the downstreaming leaf router
-// There are 3 cases to decrement the downstreaming credit
+// There are 4 cases to decrement the downstreaming credit
 // a) act_send_en: broadcast an input activation
 // b) fin_comp: send a `FIN_COMP` packet
 // c) read_rqst_read_en: send a `READ` packet
+// d) part_sum_send_en: send a `UV` packet
 // -------------------------------------------------------------
 reg [`CREDIT_CNT_WIDTH-1:0] credit_count;
-wire credit_decre = act_send_en | fin_comp | read_rqst_read_en;
+wire credit_decre = act_send_en | fin_comp | read_rqst_read_en |
+                    part_sum_send_en;
 always @ (posedge clk or posedge rst) begin
   if (rst) begin
     credit_count      <= `TOT_FIFO_DEPTH;
