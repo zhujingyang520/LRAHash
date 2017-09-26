@@ -17,12 +17,14 @@ module PEBroadcastFSM (
                                                       // start broadcast
 
   input wire  [`PeActNoBus]         in_act_no,        // input activation no.
+  input wire                        in_act_relu,      // input activation relu
 
   // activation register interface
   output reg                        in_act_read_en,   // input act read enable
   output reg  [`PeActNoBus]         in_act_read_addr, // read address
-  input wire  [`PeDataBus]          in_act_read_data, // read data
+  input wire  [`ActRegDataBus]      in_act_read_data, // read data
   input wire  [`PE_ACT_NO-1:0]      in_act_zeros,     // input activation zero
+  input wire  [`PE_ACT_NO-1:0]      in_act_g_zeros,   // input activation > 0
 
   // network interface
   output reg                        act_send_en,      // activation send enable
@@ -102,7 +104,7 @@ always @ (*) begin
           in_act_read_addr= lnzd_position_reg;
           // send the input activation
           act_send_en     = 1'b1;
-          act_send_data   = in_act_read_data;
+          act_send_data   = in_act_read_data[`PeDataBus];
           // address is left shift by 6 bits and plus the index
           act_send_addr   = {4'd0, lnzd_position_reg, PE_IDX};
           // increment to the next start index
@@ -116,10 +118,19 @@ end
 // --------------------------------------------
 // Input activation leading nonzero detection
 // --------------------------------------------
+// Mux of input activation relu
+reg [`PE_ACT_NO-1:0] in_act_lnzd_in;
+always @ (*) begin
+  if (in_act_relu) begin
+    in_act_lnzd_in        = in_act_g_zeros;
+  end else begin
+    in_act_lnzd_in        = in_act_zeros;
+  end
+end
 LNZDRange #(
   .BIT_WIDTH          (`PE_ACT_NO)              // bit width (power of 2)
 ) lnzd_range (
-  .data_in            (in_act_zeros),           // input data to be detected
+  .data_in            (in_act_lnzd_in),         // input data to be detected
   .start              (lnzd_start),             // start range
   .stop               (in_act_no),              // stop range
 

@@ -90,6 +90,7 @@ initial begin
   w_mem_init;
   u_mem_init;
   v_mem_init;
+  rank_bias_mem_init;
 
   init(2);                  // reset for 2 clock cycles
   config_op("config.dat");  // write the configuration info

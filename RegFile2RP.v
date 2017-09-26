@@ -87,6 +87,7 @@ end
 // zero flags
 generate
 for (g = 0; g < REG_DEPTH; g = g + 1) begin: gen_zeros
+  // zeros: whether the stored data is zero
   assign zeros[g] = (reg_array[g] == {BIT_WIDTH{1'b0}}) ? 1'b0 : 1'b1;
   // MSB: sign bit
   assign g_zeros[g] = (~reg_array[g][BIT_WIDTH-1] & zeros[g]) ? 1'b1 : 1'b0;

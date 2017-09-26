@@ -28,7 +28,7 @@ module NIInputUnit (
   // Activation register file interface
   output reg                      in_act_write_en,    // in act write enable
   output reg  [`PeActNoBus]       in_act_write_addr,  // in act write address
-  output reg  [`PeDataBus]        in_act_write_data,  // in act write data
+  output reg  [`ActRegDataBus]    in_act_write_data,  // in act write data
 
   // PE controller interface
   output reg                      pe_start_calc,      // pe start calculation
@@ -96,7 +96,11 @@ always @ (*) begin
       route_addr[7] == 1'b1) begin
     in_act_write_en   = 1'b1;
     in_act_write_addr = route_addr[6:1];
-    in_act_write_data = route_data;
+    // signed extention
+    in_act_write_data = {
+      {(`ACT_REG_DATA_WIDTH-`PE_DATA_WIDTH){route_data[`PE_DATA_WIDTH-1]}},
+      route_data
+    };
   end else begin
     in_act_write_en   = 1'b0;
     in_act_write_addr = 0;

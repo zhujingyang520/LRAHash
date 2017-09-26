@@ -21,7 +21,7 @@ module PEBroadcastPartSumFSM (
   // use secondary read port
   output reg                    out_act_read_en_s,  // read enable
   output reg  [`PeActNoBus]     out_act_read_addr_s,// read address
-  input wire  [`PeDataBus]      out_act_read_data_s,// read data
+  input wire  [`ActRegDataBus]  out_act_read_data_s,// read data
 
   // interfaces of network interface
   output reg                    part_sum_send_en,   // partial sum send enable
@@ -135,7 +135,7 @@ always @ (*) begin
         part_sum_send_en        = 1'b1;
         part_sum_send_addr      = {{(`ROUTER_ADDR_WIDTH-`RANK_WIDTH){1'b0}},
                                     part_sum_tx_cnt_reg};
-        part_sum_send_data      = out_act_read_data_s;
+        part_sum_send_data      = out_act_read_data_s[`PeDataBus];
 
         // increments the part_sum_tx_cnt_reg
         part_sum_tx_cnt_next    = part_sum_tx_cnt_reg + 1;
@@ -144,15 +144,21 @@ always @ (*) begin
           state_next            = STATE_IDLE;
           fin_tx_part_sum       = 1'b1;
         end
-
-        // display info
-        // synopsys translate_off
-        $display("@%t PE[%d] BROADCAST partial sum[%d] = %d", $time, PE_IDX,
-          part_sum_tx_cnt_reg, $signed(out_act_read_addr_s));
-        // synopsys translate_on
       end
     end
   endcase
 end
+
+// ----------------------------------
+// display info
+// ----------------------------------
+// synopsys translate_off
+always @ (posedge clk) begin
+  if (part_sum_send_en) begin
+    $display("@t PE[%d] BROADCAST partial sum[%d] = %d", $time, PE_IDX,
+      part_sum_tx_cnt_reg, $signed(part_sum_send_data));
+  end
+end
+// synopsys translate_on
 
 endmodule

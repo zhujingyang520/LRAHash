@@ -59,6 +59,8 @@ wire [`ROUTER_WIDTH-1:0] comp_tx_data;
 wire rank_tx_en;
 wire [`ROUTER_WIDTH-1:0] rank_tx_data;
 wire [`PeLayerNoBus] layer_idx;
+wire clear_bias_offset;
+wire update_bias_offset;
 
 /*
 // -------------------
@@ -120,7 +122,11 @@ RootCompController root_comp_controller (
   .router_rdy         (router_rdy),               // router ready
   .layer_idx          (layer_idx),                // layer index
   .comp_tx_en         (comp_tx_en),               // comp tx enable
-  .comp_tx_data       (comp_tx_data)              // comp tx data
+  .comp_tx_data       (comp_tx_data),             // comp tx data
+
+  // interfaces of the root rank register
+  .clear_bias_offset  (clear_bias_offset),        // clear offset
+  .update_bias_offset (update_bias_offset)        // update offset
 );
 
 // --------------------------------
@@ -135,6 +141,8 @@ RootRank root_rank (
   .layer_idx          (layer_idx),                // layer index
   .rank_tx_en         (rank_tx_en),               // rank transmit enable
   .rank_tx_data       (rank_tx_data),             // rank transmit data
+  .clear_bias_offset  (clear_bias_offset),        // clear offset
+  .update_bias_offset (update_bias_offset),       // update offset
 
   // input data port (LOCAL) from the quadtree router
   .in_data_valid      (in_data_valid_local),      // input data valid

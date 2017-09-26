@@ -18,6 +18,7 @@
 // ------------------------------------------------
 `define PE_DATA_WIDTH 16          // Bit width of the main data path
 `define PeDataBus `PE_DATA_WIDTH-1:0
+`define DoublePeDataBus 2*`PE_DATA_WIDTH-1:0
 
 `define PE_ADDR_WIDTH 12          // Bit width of the address path
 `define PeAddrBus `PE_ADDR_WIDTH-1:0
@@ -40,6 +41,11 @@
 
 `define RANK_WIDTH 6              // Rank size width
 `define RankBus `RANK_WIDTH-1:0
+// Rank bias (@ root node)
+`define RANK_BIAS_MEM_ADDR_WIDTH 7
+`define RankBiasMemAddrBus `RANK_BIAS_MEM_ADDR_WIDTH-1:0
+`define RANK_BIAS_MEM_DATA_WIDTH `PE_DATA_WIDTH
+`define RankBiasMemDataBus `RANK_BIAS_MEM_DATA_WIDTH-1:0
 
 // Activation registers in/out direction
 `define ACT_DIR_0 1'b0            // act[0]: in; act[1]: out
@@ -79,5 +85,18 @@
 // Computation pipeline stage
 // ---------------------------
 `define COMP_PIPE_STAGE 5
+
+// ---------------------------
+// Truncation scheme
+// ---------------------------
+`define TRUNC_WIDTH 5
+`define TruncWidth `TRUNC_WIDTH-1:0
+
+// -------------------------------
+// Activation register data width
+// Larger than PE_DATA_WIDTH
+// -------------------------------
+`define ACT_REG_DATA_WIDTH 18
+`define ActRegDataBus `ACT_REG_DATA_WIDTH-1:0
 
 `endif

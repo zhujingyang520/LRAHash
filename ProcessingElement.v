@@ -48,11 +48,17 @@ wire [`PeActNoBus] in_act_no;
 wire [`PeActNoBus] out_act_no;
 wire [`PeAddrBus] col_dim;
 wire [`WMemAddrBus] w_mem_offset;
+wire in_act_relu;
+wire out_act_relu;
 // uv related interface
 wire uv_en;
 wire [`RankBus] rank_no;
 wire [`UMemAddrBus] u_mem_offset;
 wire [`VMemAddrBus] v_mem_offset;
+// truncation scheme
+wire [`TruncWidth] act_trunc;
+wire [`TruncWidth] act_u_trunc;
+wire [`TruncWidth] act_v_trunc;
 
 // ----------------------------------------------
 // Interconnections of activation register files
@@ -60,19 +66,21 @@ wire [`VMemAddrBus] v_mem_offset;
 wire act_regfile_dir;
 wire in_act_write_en;
 wire [`PeActNoBus] in_act_write_addr;
-wire [`PeDataBus] in_act_write_data;
+wire [`ActRegDataBus] in_act_write_data;
 wire [`PE_ACT_NO-1:0] in_act_zeros;
 wire in_act_read_en;
 wire [`PeActNoBus] in_act_read_addr;
-wire [`PeDataBus] in_act_read_data;
+wire [`ActRegDataBus] in_act_read_data;
 wire out_act_clear;
 wire out_act_read_en;
 wire [`PeActNoBus] out_act_read_addr;
-wire [`PeDataBus] out_act_read_data;
+wire [`ActRegDataBus] out_act_read_data;
+wire [`ActRegDataBus] out_act_read_data_relu;
+wire [`PE_ACT_NO-1:0] in_act_g_zeros;
 wire [`PE_ACT_NO-1:0] out_act_g_zeros;
 wire out_act_read_en_s;
 wire [`PeActNoBus] out_act_read_addr_s;
-wire [`PeDataBus] out_act_read_data_s;
+wire [`ActRegDataBus] out_act_read_data_s;
 
 // -----------------------------------
 // Interconnections of PE controller
@@ -101,10 +109,12 @@ wire [`PeAddrBus] in_act_idx;
 wire [`PeActNoBus] out_act_addr;
 wire [`PeDataBus] in_act_value;
 wire [`WMemAddrBus] mem_offset;
+wire [`TruncWidth] trunc_amount;
 // Stage 2: memory access
 wire [`CompEnBus] comp_en_mem;
 wire [`PeDataBus] in_act_value_mem;
 wire [`PeActNoBus] out_act_addr_mem;
+wire [`TruncWidth] trunc_amount_mem;
 wire w_mem_cen;
 wire w_mem_wen;
 wire [`WMemAddrBus] w_mem_addr;
@@ -119,14 +129,16 @@ wire [`CompEnBus] comp_en_mult;
 wire [`PeDataBus] in_act_value_mult;
 wire [`PeDataBus] mem_value_mult;
 wire [`PeActNoBus] out_act_addr_mult;
+wire [`TruncWidth] trunc_amount_mult;
 // Stage 4: addition (ADD)
 wire [`CompEnBus] comp_en_add;
-wire [`PeDataBus] mult_result_add;
+wire [`TruncWidth] trunc_amount_add;
+wire [`DoublePeDataBus] mult_result_add;
 wire [`PeActNoBus] out_act_addr_add;
 // Stage 5: output activation write back (WB)
 wire out_act_write_en;
 wire [`PeActNoBus] out_act_addr_wb;
-wire [`PeDataBus] add_result_wb;
+wire [`ActRegDataBus] add_result_wb;
 
 // -------------------
 // Network interface
@@ -150,6 +162,7 @@ NetworkInterface network_interface (
   .pe_status_we       (pe_status_we),       // pe status write enable
   .pe_status_addr     (pe_status_addr),     // pe status write address
   .pe_status_data     (pe_status_data),     // pe status write data
+  .out_act_relu       (out_act_relu),       // out act relu
   // input activation configuration
   .in_act_write_en    (in_act_write_en),    // input act write enable
   .in_act_write_addr  (in_act_write_addr),  // input act write address
@@ -157,6 +170,8 @@ NetworkInterface network_interface (
 
   // read request interface (to activation register file)
   .out_act_read_data  (out_act_read_data),  // output activation read
+  .out_act_read_data_relu
+                      (out_act_read_data_relu),
   .ni_read_rqst       (ni_read_rqst),       // read request
   .ni_read_addr       (ni_read_addr),       // read address
 
@@ -199,8 +214,12 @@ PEController pe_controller (
   .uv_en              (uv_en),              // UV enable for cur layer
   .rank_no            (rank_no),            // rank number
   .w_mem_offset       (w_mem_offset),       // W memory offset
+  .in_act_relu        (in_act_relu),        // input act relu
   .u_mem_offset       (u_mem_offset),       // U memory offset
   .v_mem_offset       (v_mem_offset),       // V memory offset
+  .act_trunc          (act_trunc),          // act truncation scheme
+  .act_u_trunc        (act_u_trunc),        // act u truncation scheme
+  .act_v_trunc        (act_v_trunc),        // act v truncation scheme
 
   // interfaces of activation register file
   .act_regfile_dir    (act_regfile_dir),    // act regfile direction
@@ -219,6 +238,7 @@ PEController pe_controller (
   .in_act_read_en     (in_act_read_en),     // in act read enable
   .in_act_read_addr   (in_act_read_addr),   // in act read address
   .in_act_zeros       (in_act_zeros),       // in act zero flags
+  .in_act_g_zeros     (in_act_g_zeros),     // in act > 0 flags
   .out_act_g_zeros    (out_act_g_zeros),    // output act > zeros
   // secondary activation read port
   .out_act_read_en_s  (out_act_read_en_s),  // read enable
@@ -237,7 +257,8 @@ PEController pe_controller (
   .in_act_idx         (in_act_idx),         // input activation idx
   .out_act_addr       (out_act_addr),       // output activation address
   .in_act_value       (in_act_value),       // input activation value
-  .mem_offset         (mem_offset)          // memory offset
+  .mem_offset         (mem_offset),         // memory offset
+  .trunc_amount       (trunc_amount)        // truncation amount
 );
 
 // --------------------
@@ -260,12 +281,19 @@ PEStateReg pe_state_reg (
   .out_act_no         (out_act_no),         // output activation no.
   .col_dim            (col_dim),            // column dimension
   .w_mem_offset       (w_mem_offset),       // weight memory address offset
+  .in_act_relu        (in_act_relu),        // input activation relu
+  .out_act_relu       (out_act_relu),       // output activation relu
 
   // output uv calculation related parameters
   .uv_en              (uv_en),              // uv enable
   .rank_no            (rank_no),            // rank number
   .u_mem_offset       (u_mem_offset),       // u memory address offset
-  .v_mem_offset       (v_mem_offset)        // v memory address offset
+  .v_mem_offset       (v_mem_offset),       // v memory address offset
+
+  // output truncation scheme
+  .act_trunc          (act_trunc),          // Act truncation scheme
+  .act_u_trunc        (act_u_trunc),        // Act u truncation scheme
+  .act_v_trunc        (act_v_trunc)         // Act v truncation scheme
 );
 
 // ------------------------------------------------------
@@ -305,11 +333,13 @@ MemAddrComp mem_addr_comp (
   .in_act_no          (in_act_no),          // input activation number
   .rank_no            (rank_no),            // rank number
   .mem_offset         (mem_offset),         // memory offset
+  .trunc_amount       (trunc_amount),       // truncation amount
 
   // Output datapath & control path (memory stage)
   .comp_en_mem        (comp_en_mem),        // computation enable
   .in_act_value_mem   (in_act_value_mem),   // input activation value
   .out_act_addr_mem   (out_act_addr_mem),   // output activation address
+  .trunc_amount_mem   (trunc_amount_mem),   // truncation amount
 
   // on-chip sram interfaces (active low)
   // W memory
@@ -334,6 +364,7 @@ MemAccess mem_access (
   .comp_en_mem        (comp_en_mem),        // computation enable (mem)
   .in_act_value_mem   (in_act_value_mem),   // input activation value (mem)
   .out_act_addr_mem   (out_act_addr_mem),   // output activation address
+  .trunc_amount_mem   (trunc_amount_mem),   // truncation amount
   // W memory
   .w_mem_cen          (w_mem_cen),          // weight memory enable
   .w_mem_wen          (w_mem_wen),          // weight memory write enable
@@ -351,7 +382,8 @@ MemAccess mem_access (
   .comp_en_mult       (comp_en_mult),       // computation enable (mult)
   .in_act_value_mult  (in_act_value_mult),  // operand: in act (mult)
   .mem_value_mult     (mem_value_mult),     // operand: mem data (mult)
-  .out_act_addr_mult  (out_act_addr_mult)   // output activation address
+  .out_act_addr_mult  (out_act_addr_mult),  // output activation address
+  .trunc_amount_mult  (trunc_amount_mult)   // truncation amount
 );
 // Stage 3: activation & weights multiplication (MULT)
 Mult mult (
@@ -363,20 +395,24 @@ Mult mult (
   .in_act_value_mult  (in_act_value_mult),  // input activation value
   .mem_value_mult     (mem_value_mult),     // memory value
   .out_act_addr_mult  (out_act_addr_mult),  // output activation address
+  .trunc_amount_mult  (trunc_amount_mult),  // truncation scheme
 
   // Output datapath & control path (add stage)
   .comp_en_add        (comp_en_add),        // computation enable
   .out_act_addr_add   (out_act_addr_add),   // output activation address
+  .trunc_amount_add   (trunc_amount_add),   // truncation scheme
   .mult_result_add    (mult_result_add)     // multiplication result
 );
 // Stage 4: activation accumulation (ADD)
 Add add (
+  .PE_IDX             (PE_IDX),             // PE index
   .clk                (clk),                // system clock
   .rst                (rst),                // system reset (active high)
 
   // Input datapath & control path (add stage)
   .comp_en_add        (comp_en_add),        // computation enable
   .out_act_value_add  (out_act_read_data),  // output activation value
+  .trunc_amount_add   (trunc_amount_add),   // truncation scheme
   .mult_result_add    (mult_result_add),    // multiplication result
   .out_act_addr_add   (out_act_addr_add),   // output activation address
 
@@ -403,6 +439,7 @@ ActRegFile act_reg_file (
   .in_act_write_addr  (in_act_write_addr),  // write address
   .in_act_write_data  (in_act_write_data),  // write data
   .in_act_zeros       (in_act_zeros),       // zero flags
+  .in_act_g_zeros     (in_act_g_zeros),     // > 0 flags
   // output activations
   .out_act_clear      (out_act_clear),      // output activation clear
   .out_act_read_en    (out_act_read_en),    // read enable
@@ -412,6 +449,9 @@ ActRegFile act_reg_file (
   .out_act_write_addr (out_act_addr_wb),    // write address
   .out_act_write_data (add_result_wb),      // write data
   .out_act_g_zeros    (out_act_g_zeros),    // >= 0 flags
+  // relu of the output activation read data primary port
+  .out_act_read_data_relu
+                      (out_act_read_data_relu),
   // output activations secondary read port
   .out_act_read_en_s  (out_act_read_en_s),  // read enable (secondary)
   .out_act_read_addr_s(out_act_read_addr_s),// read address (secondary)

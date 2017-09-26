@@ -21,11 +21,13 @@ module MemAddrComp (
   input wire  [`PeActNoBus]   in_act_no,        // input activation number
   input wire  [`RankBus]      rank_no,          // rank number
   input wire  [`WMemAddrBus]  mem_offset,       // memory offset
+  input wire  [`TruncWidth]   trunc_amount,     // truncation amount
 
   // Output datapath & control path (memory stage)
   output reg  [`CompEnBus]    comp_en_mem,      // computation enable
   output reg  [`PeDataBus]    in_act_value_mem, // input activation value
   output reg  [`PeActNoBus]   out_act_addr_mem, // output activation address
+  output reg  [`TruncWidth]   trunc_amount_mem, // truncation amount
 
   // on-chip sram interfaces (active low)
   // W memory
@@ -103,10 +105,12 @@ always @ (posedge clk or posedge rst) begin
     comp_en_mem       <= `COMP_EN_IDLE;
     in_act_value_mem  <= 0;
     out_act_addr_mem  <= 0;
+    trunc_amount_mem  <= 0;
   end else begin
     comp_en_mem       <= comp_en;
     in_act_value_mem  <= in_act_value;
     out_act_addr_mem  <= out_act_addr;
+    trunc_amount_mem  <= trunc_amount;
   end
 end
 

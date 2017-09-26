@@ -27,13 +27,15 @@ module NetworkInterface (
   output wire                     pe_status_we,       // pe status write enable
   output wire [`PeStatusAddrBus]  pe_status_addr,     // pe status write address
   output wire [`PeStatusDataBus]  pe_status_data,     // pe status write data
+  input wire                      out_act_relu,       // out act relu
   // input activation configuration
   output wire                     in_act_write_en,    // input act write enable
   output wire [`PeActNoBus]       in_act_write_addr,  // input act write address
-  output wire [`PeDataBus]        in_act_write_data,  // input act write data
+  output wire [`ActRegDataBus]    in_act_write_data,  // input act write data
 
   // read request interface (to activation register file)
-  input wire  [`PeDataBus]        out_act_read_data,  // output activation read
+  input wire  [`ActRegDataBus]    out_act_read_data,  // output activation read
+  input wire  [`ActRegDataBus]    out_act_read_data_relu,
   output wire                     ni_read_rqst,       // read request
   output wire [`PeActNoBus]       ni_read_addr,       // read address
 
@@ -125,8 +127,12 @@ NIOutputUnit ni_output_unit (
   .ni_read_rqst           (ni_read_rqst),             // read request enable
   .ni_read_addr           (ni_read_addr),             // read request address
 
+  // PE status registers
+  .out_act_relu           (out_act_relu),             // output act relu
+
   // Activation register file interface
   .out_act_read_data      (out_act_read_data),        // output act read data
+  .out_act_read_data_relu (out_act_read_data_relu),   // out act read data relu
 
   // Credit input from downstreaming router
   .downstream_credit      (downstream_credit),

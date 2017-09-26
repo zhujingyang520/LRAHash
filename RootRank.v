@@ -17,6 +17,8 @@ module RootRank (
   input wire  [`PeLayerNoBus]       layer_idx,        // layer index
   output wire                       rank_tx_en,       // rank transmit enable
   output wire [`ROUTER_WIDTH-1:0]   rank_tx_data,     // rank transmit data
+  input wire                        clear_bias_offset,// clear offset
+  input wire                        update_bias_offset, // update offset
 
   // input data port (LOCAL) from the quadtree router
   input wire                        in_data_valid,    // input data valid
@@ -45,6 +47,12 @@ wire [1:0] state_waddr;
 wire [2*`RANK_WIDTH-1:0] state_wdata;
 wire uv_en;
 wire [`RANK_WIDTH-1:0] rank_no;
+// rank bias memory interface
+wire rank_bias_mem_wen;
+wire rank_bias_mem_cen;
+wire rank_bias_mem_oe;
+wire [`RankBiasMemAddrBus] rank_bias_mem_addr;
+wire [`RankBiasMemDataBus] rank_bias_mem_q;
 
 // -------------------------------------------
 // Root Rank Controller
@@ -57,6 +65,8 @@ RootRankController root_rank_controller (
   .router_rdy           (router_rdy),                 // router ready
   .rank_tx_en           (rank_tx_en),                 // rank transmit enable
   .rank_tx_data         (rank_tx_data),               // rank transmit data
+  .clear_bias_offset    (clear_bias_offset),          // clear offset
+  .update_bias_offset   (update_bias_offset),         // update offset
 
   // input data port from the router
   .in_data_valid        (in_data_valid),              // input data valid
@@ -67,6 +77,13 @@ RootRankController root_rank_controller (
   .write_rdy            (write_rdy),                  // write ready
   .write_data           (write_data),                 // write data
   .write_addr           (write_addr),                 // write address
+
+  // interfaces of the RootRank bias memory
+  .rank_bias_mem_wen    (rank_bias_mem_wen),          // write enable
+  .rank_bias_mem_cen    (rank_bias_mem_cen),          // chip enable
+  .rank_bias_mem_oe     (rank_bias_mem_oe),           // output enable
+  .rank_bias_mem_addr   (rank_bias_mem_addr),         // address
+  .rank_bias_mem_q      (rank_bias_mem_q),            // read data
 
   // interfaces of RootRank register
   .rank_we              (rank_we),                    // rank write enable
@@ -114,6 +131,19 @@ RootRankReg root_rank_reg (
   .rank_re              (rank_re),                    // rank read enable
   .rank_raddr           (rank_raddr),                 // rank read address
   .rank_rdata           (rank_rdata)                  // rank read data
+);
+
+// ---------------------------------
+// Root Rank bias memory (2kb)
+// ---------------------------------
+SRAM_16x128_1P rank_bias_mem (
+  .CE1                  (clk),                        // system clock
+  .WEB1                 (rank_bias_mem_wen),          // write enable
+  .CSB1                 (rank_bias_mem_cen),          // chip enable
+  .OEB1                 (rank_bias_mem_oe),           // output enable
+  .A1                   (rank_bias_mem_addr),         // read/write address
+  .I1                   ({`RANK_BIAS_MEM_DATA_WIDTH{1'b0}}),
+  .O1                   (rank_bias_mem_q)             // data output (read op)
 );
 
 endmodule

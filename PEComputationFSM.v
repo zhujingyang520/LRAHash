@@ -26,15 +26,20 @@ module PEComputationFSM (
   input wire  [`RankBus]            rank_no,      // rank number
   output wire [`PeLayerNoBus]       layer_idx,    // current layer index
   input wire  [`WMemAddrBus]        w_mem_offset, // W memory offset
+  input wire                        in_act_relu,  // input activation relu
   input wire  [`UMemAddrBus]        u_mem_offset, // U memory offset
   input wire  [`VMemAddrBus]        v_mem_offset, // V memory offset
+  input wire  [`TruncWidth]         act_trunc,    // act truncation scheme
+  input wire  [`TruncWidth]         act_u_trunc,  // act u truncation scheme
+  input wire  [`TruncWidth]         act_v_trunc,  // act v truncation scheme
 
   // Activation register file
-  input wire  [`PE_ACT_NO-1:0]      in_act_zeros, // input activation zero
+  input wire  [`PE_ACT_NO-1:0]      in_act_zeros,     // input activation != 0
+  input wire  [`PE_ACT_NO-1:0]      in_act_g_zeros,   // input act > 0
   output wire                       act_regfile_dir,
   output reg                        in_act_read_en,   // input act read enable
   output reg  [`PeActNoBus]         in_act_read_addr, // input act read addr
-  input wire  [`PeDataBus]          in_act_read_data, // input act read data
+  input wire  [`ActRegDataBus]      in_act_read_data, // input act read data
   input wire  [`PE_ACT_NO-1:0]      out_act_g_zeros,  // output act > zeros
 
   // PE activation queue interface
@@ -49,8 +54,11 @@ module PEComputationFSM (
   output reg  [`PeAddrBus]          in_act_idx,   // input activation idx
   output reg  [`PeActNoBus]         out_act_addr, // output activation address
   output reg  [`PeDataBus]          in_act_value, // input activation value
-  output reg  [`WMemAddrBus]        mem_offset    // memory offset
+  output reg  [`WMemAddrBus]        mem_offset,   // memory offset
+  output reg  [`TruncWidth]         trunc_amount  // truncation amount
 );
+
+`define CONST_ONE 1
 
 // ----------------------
 // FSM state definition
@@ -63,7 +71,8 @@ localparam    STATE_IDLE            = 4'd0,       // idle state
               STATE_U_CALC          = 4'd5,       // U calculation state
               STATE_FIN_V_TX        = 4'd6,       // finish V tx state
               STATE_PRE_V           = 4'd7,       // pre-V computation
-              STATE_FIN_U           = 4'd8;       // finish U (mask) computation
+              STATE_FIN_U           = 4'd8,       // finish U (mask) computation
+              STATE_B_CALC          = 4'd9;       // bias calculation
 
 // FSM state register
 reg [3:0] state_reg, state_next;
@@ -85,6 +94,7 @@ reg [`PeAddrBus] in_act_idx_d;
 reg [`PeActNoBus] out_act_addr_d;
 reg [`PeDataBus] in_act_value_d;
 reg [`WMemAddrBus] mem_offset_d;
+reg [`TruncWidth] trunc_amount_d;
 
 // -------------------------------------------------
 // UV related registers
@@ -156,6 +166,7 @@ always @ (*) begin
   out_act_addr_d        = 0;
   in_act_value_d        = 0;
   mem_offset_d          = 0;
+  trunc_amount_d        = 0;
 
   // UV related register
   lnzd_start            = 0;
@@ -184,7 +195,12 @@ always @ (*) begin
           // synopsys translate_on
         end else begin
           // next state, we go to W calculation stage
-          state_next        = STATE_W_CALC;
+          // we do the calculation of bias (enter the bias stage)
+          if (out_act_no == 0) begin
+            state_next      = STATE_W_CALC;
+          end else begin
+            state_next      = STATE_B_CALC;
+          end
           layer_idx_next    = 0;
           out_act_idx_next  = 0;
           out_act_clear_next= 1'b1;
@@ -220,10 +236,11 @@ always @ (*) begin
         comp_en_d       = `COMP_EN_V;
         in_act_idx_d    = {{(`PE_ADDR_WIDTH-`PE_ACT_NO_WIDTH){1'b0}},
                             lnzd_position_reg};
-        in_act_value_d  = in_act_read_data;
+        in_act_value_d  = in_act_read_data[`PeDataBus];
         out_act_addr_d  = out_act_idx_reg;
         mem_offset_d    = {{(`W_MEM_ADDR_WIDTH-`V_MEM_ADDR_WIDTH){1'b0}},
                             v_mem_offset};
+        trunc_amount_d  = act_v_trunc;
       end
     end
 
@@ -252,6 +269,7 @@ always @ (*) begin
           out_act_addr_d  = out_act_idx_reg;
           mem_offset_d    = {{(`W_MEM_ADDR_WIDTH-`U_MEM_ADDR_WIDTH){1'b0}},
                               u_mem_offset};
+          trunc_amount_d  = act_u_trunc;
         end
         if (out_act_no == 0 || out_act_idx_reg == out_act_no-1) begin
           pop_act         = 1'b1;
@@ -275,7 +293,44 @@ always @ (*) begin
         mask_lnzd_start   = 0;
       end
       else if (fin_u_cnt_reg == 3'd6) begin
-        state_next        = STATE_W_CALC;
+        if (out_act_no == 0) begin
+          state_next      = STATE_W_CALC;
+        end else begin
+          state_next      = STATE_B_CALC;
+        end
+      end
+    end
+
+    STATE_B_CALC: begin
+      if (uv_en) begin
+        // UV bypass
+        mask_lnzd_start     = mask_lnzd_position_reg + 1;
+        if (mask_lnzd_valid_reg) begin
+          comp_en_d         = `COMP_EN_W;
+          in_act_idx_d      = 0;
+          in_act_value_d    = `CONST_ONE;
+          out_act_addr_d    = mask_lnzd_position_reg;
+          mem_offset_d      = w_mem_offset;
+          trunc_amount_d    = 0;
+        end else begin
+          state_next        = STATE_W_CALC;
+          mask_lnzd_start   = 0;
+        end
+      end else begin
+        // go to the next activation index
+        out_act_idx_next  = (out_act_idx_reg == out_act_no-1) ? 0 :
+          out_act_idx_incre;
+        // computation enable
+        comp_en_d           = `COMP_EN_W;
+        in_act_idx_d        = 0;
+        in_act_value_d      = `CONST_ONE;
+        out_act_addr_d      = out_act_idx_reg;
+        mem_offset_d        = w_mem_offset;
+        trunc_amount_d      = 0;
+
+        if (out_act_idx_reg == out_act_no-1) begin
+          state_next        = STATE_W_CALC;
+        end
       end
     end
 
@@ -287,10 +342,11 @@ always @ (*) begin
             mask_lnzd_start = mask_lnzd_position_reg + 1;
             if (mask_lnzd_valid_reg) begin
               comp_en_d     = `COMP_EN_W;
-              in_act_idx_d  = act_out[`PE_QUEUE_WIDTH-1:`PE_DATA_WIDTH];
+              in_act_idx_d  = act_out[`PE_QUEUE_WIDTH-1:`PE_DATA_WIDTH] + 1;
               in_act_value_d= act_out[`PE_DATA_WIDTH-1:0];
               out_act_addr_d= mask_lnzd_position_reg;
               mem_offset_d  = w_mem_offset;
+              trunc_amount_d= act_trunc;
             end
             else begin
               // all the nonzero acts have been calculated
@@ -304,10 +360,11 @@ always @ (*) begin
               out_act_idx_incre;
             // computation enable
             comp_en_d       = `COMP_EN_W;
-            in_act_idx_d    = act_out[`PE_QUEUE_WIDTH-1:`PE_DATA_WIDTH];
+            in_act_idx_d    = act_out[`PE_QUEUE_WIDTH-1:`PE_DATA_WIDTH] + 1;
             in_act_value_d  = act_out[`PE_DATA_WIDTH-1:0];
             out_act_addr_d  = out_act_idx_reg;
             mem_offset_d    = w_mem_offset;
+            trunc_amount_d  = act_trunc;
 
             // if all the activation finishes
             if (out_act_idx_reg == out_act_no-1) begin
@@ -336,10 +393,11 @@ always @ (*) begin
           if (mask_lnzd_valid_reg) begin
             // computation enable
             comp_en_d       = `COMP_EN_W;
-            in_act_idx_d    = act_out[`PE_QUEUE_WIDTH-1:`PE_DATA_WIDTH];
+            in_act_idx_d    = act_out[`PE_QUEUE_WIDTH-1:`PE_DATA_WIDTH]+1;
             in_act_value_d  = act_out[`PE_DATA_WIDTH-1:0];
             out_act_addr_d  = mask_lnzd_position_reg;
             mem_offset_d    = w_mem_offset;
+            trunc_amount_d  = act_trunc;
           end else begin
             pop_act         = 1'b1;
             mask_lnzd_start = 0;
@@ -355,10 +413,11 @@ always @ (*) begin
             out_act_idx_incre;
           // computation enable
           comp_en_d         = `COMP_EN_W;
-          in_act_idx_d      = act_out[`PE_QUEUE_WIDTH-1:`PE_DATA_WIDTH];
+          in_act_idx_d      = act_out[`PE_QUEUE_WIDTH-1:`PE_DATA_WIDTH]+1;
           in_act_value_d    = act_out[`PE_DATA_WIDTH-1:0];
           out_act_addr_d    = out_act_idx_reg;
           mem_offset_d      = w_mem_offset;
+          trunc_amount_d    = act_trunc;
 
           // if all the activation finishes
           if (out_act_idx_reg == out_act_no-1) begin
@@ -384,7 +443,11 @@ always @ (*) begin
           if (uv_en) begin
             state_next        = STATE_PRE_V;
           end else begin
-            state_next        = STATE_W_CALC;
+            if (out_act_no == 0) begin
+              state_next      = STATE_W_CALC;
+            end else begin
+              state_next      = STATE_B_CALC;
+            end
             pe_start_broadcast_next = 1'b1;
           end
           out_act_idx_next    = 0;
@@ -411,10 +474,19 @@ end
 // (TODO): for a more efficient implementation, the LNZD unit can be reused with
 // the LNZD in broadcast module
 // -----------------------------------------------------------------------------
+reg [`PE_ACT_NO-1:0] in_act_lnzd_in;
+// Mux of relu input / non-relu input
+always @ (*) begin
+  if (in_act_relu) begin
+    in_act_lnzd_in    = in_act_g_zeros;
+  end else begin
+    in_act_lnzd_in    = in_act_zeros;
+  end
+end
 LNZDRange #(
   .BIT_WIDTH          (`PE_ACT_NO)              // bit width (power of 2)
 ) lnzd_range (
-  .data_in            (in_act_zeros),           // input data to be detected
+  .data_in            (in_act_lnzd_in),         // input data to be detected
   .start              (lnzd_start),             // start range
   .stop               (in_act_no),              // stop range
 
@@ -473,12 +545,14 @@ always @ (posedge clk or posedge rst) begin
     out_act_addr    <= 0;
     in_act_value    <= 0;
     mem_offset      <= 0;
+    trunc_amount    <= 0;
   end else begin
     comp_en         <= comp_en_d;
     in_act_idx      <= in_act_idx_d;
     out_act_addr    <= out_act_addr_d;
     in_act_value    <= in_act_value_d;
     mem_offset      <= mem_offset_d;
+    trunc_amount    <= trunc_amount_d;
   end
 end
 

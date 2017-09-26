@@ -155,6 +155,15 @@ task v_mem_init;
 endtask
 
 // ----------------------------------------------------------
+// Rank bias memory initialization
+// ----------------------------------------------------------
+task rank_bias_mem_init;
+  begin
+    $readmemh("mem_init/rank_bias_mem_init.dat", accelerator.root_node.root_rank.rank_bias_mem.memory);
+  end
+endtask
+
+// ----------------------------------------------------------
 // W memory SRAM initialization with the actual weights data
 // Note: the file `mem_init` MUST be in the search path
 // ----------------------------------------------------------

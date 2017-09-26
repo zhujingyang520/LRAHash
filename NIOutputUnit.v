@@ -29,9 +29,13 @@ module NIOutputUnit (
   input wire                            ni_read_rqst, // read request enable
   input wire  [`PeActNoBus]             ni_read_addr, // read request address
 
+  // PE status registers
+  input wire                            out_act_relu, // output act relu
   // Activation register file interface
-  input wire  [`PeDataBus]              out_act_read_data,
+  input wire  [`ActRegDataBus]          out_act_read_data,
                                                       // output act read data
+  input wire  [`ActRegDataBus]          out_act_read_data_relu,
+                                                      // out act read data relu
 
   // Credit input from downstreaming router
   input wire                            downstream_credit,
@@ -42,6 +46,15 @@ module NIOutputUnit (
   output reg  [`ROUTER_WIDTH-1:0]       out_data      // output data
 );
 
+// Mux for the output activation
+reg [`PeDataBus] out_act_data;
+always @ (*) begin
+  if (out_act_relu) begin
+    out_act_data    = out_act_read_data_relu[`PeDataBus];
+  end else begin
+    out_act_data    = out_act_read_data[`PeDataBus];
+  end
+end
 
 // --------------------------------------------------
 // Output datapath: registers to transfer the packet
@@ -81,7 +94,7 @@ always @ (posedge clk or posedge rst) begin
     out_data_valid    <= 1'b1;
     out_data[35:32]   <= `ROUTER_INFO_READ;
     out_data[31:16]   <= {4'b0,ni_read_addr, PE_IDX};
-    out_data[15:0]    <= out_act_read_data; // embed the act value into packet
+    out_data[15:0]    <= out_act_data;      // embed the act value into packet
   end else begin
     out_data_valid    <= 1'b0;
     out_data          <= 0;

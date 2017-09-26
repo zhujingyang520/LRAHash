@@ -35,3 +35,5 @@ vectors exported from MATLAB.
   resolve the additional bubble caused by the back-to-back packet stall. The
   execution cycle of short and fat matrix can be reduced by twice.
 - 2017.8.28: UV computation scheme of the LRAHash.
+- 2017.9.10: ReLU & Bias support.
+- 2017.9.26: Extend the internal datapath to 18-bit for a full range support.

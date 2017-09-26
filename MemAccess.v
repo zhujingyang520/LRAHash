@@ -14,6 +14,7 @@ module MemAccess (
   input wire  [`CompEnBus]    comp_en_mem,      // computation enable (mem)
   input wire  [`PeDataBus]    in_act_value_mem, // input activation value (mem)
   input wire  [`PeActNoBus]   out_act_addr_mem, // output activation address
+  input wire  [`TruncWidth]   trunc_amount_mem, // truncation amount
   // W memory
   input wire                  w_mem_cen,        // weight memory enable
   input wire                  w_mem_wen,        // weight memory write enable
@@ -31,7 +32,8 @@ module MemAccess (
   output reg  [`CompEnBus]    comp_en_mult,     // computation enable (mult)
   output reg  [`PeDataBus]    in_act_value_mult,// operand: in act (mult)
   output reg  [`PeDataBus]    mem_value_mult,   // operand: mem data (mult)
-  output reg  [`PeActNoBus]   out_act_addr_mult // output activation address
+  output reg  [`PeActNoBus]   out_act_addr_mult,// output activation address
+  output reg  [`TruncWidth]   trunc_amount_mult // truncation amount
 );
 
 // ---------------------
@@ -70,7 +72,7 @@ SRAM_16x65536_1P w_mem (
   .CSB1               (w_mem_cen),              // chip enable (active low)
   .OEB1               (w_mem_oe),               // output enable (active low)
   .A1                 (w_mem_addr),             // read/write address
-  .I1                 (`W_MEM_ADDR_WIDTH'd0),   // data input (write op)
+  .I1                 (`W_MEM_DATA_WIDTH'd0),   // data input (write op)
   .O1                 (w_mem_q)                 // data output (read op)
 );
 // U memory
@@ -143,10 +145,12 @@ always @ (posedge clk or posedge rst) begin
     comp_en_mult      <= `COMP_EN_IDLE;
     in_act_value_mult <= 0;
     out_act_addr_mult <= 0;
+    trunc_amount_mult <= 0;
   end else begin
     comp_en_mult      <= comp_en_mem;
     in_act_value_mult <= in_act_value_mem;
     out_act_addr_mult <= out_act_addr_mem;
+    trunc_amount_mult <= trunc_amount_mem;
   end
 end
 // Select the desired memory output

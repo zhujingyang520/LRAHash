@@ -38,7 +38,11 @@ module RootCompController (
   input wire                          router_rdy,         // router ready
   output wire [`PeLayerNoBus]         layer_idx,          // layer index
   output reg                          comp_tx_en,         // comp tx enable
-  output reg  [`ROUTER_WIDTH-1:0]     comp_tx_data        // comp tx data
+  output reg  [`ROUTER_WIDTH-1:0]     comp_tx_data,       // comp tx data
+
+  // interfaces of the root rank register
+  output reg                          clear_bias_offset,  // clear offset
+  output reg                          update_bias_offset  // update offset
 );
 
 // ---------------------------------
@@ -110,6 +114,9 @@ always @ (*) begin
   comp_tx_data      = 0;
   // disable interrupt by default
   interrupt_next    = 1'b0;
+  // disable the bias memory offset
+  clear_bias_offset   = 1'b0;
+  update_bias_offset  = 1'b0;
 
   case (state_reg)
     STATE_IDLE: begin
@@ -189,9 +196,11 @@ always @ (*) begin
             if (layer_idx_reg == layer_no - 1) begin
               state_next        = STATE_IDLE;
               interrupt_next    = 1'b1;
+              clear_bias_offset = 1'b1;
             end else begin
               state_next        = STATE_FIN_BROADCAST;
               layer_idx_next    = layer_idx_incre;
+              update_bias_offset= 1'b1;
             end
           end else begin
             state_next          = STATE_FIN_COMP_STALL;
@@ -212,9 +221,11 @@ always @ (*) begin
         if (layer_idx_reg == layer_no - 1) begin
           state_next            = STATE_IDLE;
           interrupt_next        = 1'b1;
+          clear_bias_offset     = 1'b1;
         end else begin
           state_next            = STATE_FIN_BROADCAST;
           layer_idx_next        = layer_idx_incre;
+          update_bias_offset    = 1'b1;
         end
       end
     end
@@ -267,7 +278,7 @@ always @ (posedge clk) begin
       $time, in_data_route_data);
   end
   else if (in_data_valid && in_data_route_info == `ROUTER_INFO_UV) begin
-    $display("@%t Root Controller receives rank[%d] = %d", $time,
+    $display("@%t Root Controller receives partial rank[%d] = %d", $time,
       in_data_route_addr, $signed(in_data_route_data));
   end
 end

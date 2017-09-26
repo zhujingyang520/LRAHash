@@ -17,6 +17,8 @@ module RootRankController (
   input wire                        router_rdy,       // router ready
   output reg                        rank_tx_en,       // rank transmit enable
   output reg  [`ROUTER_WIDTH-1:0]   rank_tx_data,     // rank transmit data
+  input wire                        clear_bias_offset,// clear offset
+  input wire                        update_bias_offset, // update offset
 
   // input data port from the router
   input wire                        in_data_valid,    // input data valid
@@ -27,6 +29,13 @@ module RootRankController (
   input wire                        write_rdy,        // write ready
   input wire  [`DataBus]            write_data,       // write data
   input wire  [`AddrBus]            write_addr,       // write address
+
+  // interfaces of the RootRank bias memory
+  output reg                        rank_bias_mem_wen,
+  output reg                        rank_bias_mem_cen,
+  output reg                        rank_bias_mem_oe,
+  output reg  [`RankBiasMemAddrBus] rank_bias_mem_addr,
+  input wire  [`RankBiasMemDataBus] rank_bias_mem_q,
 
   // interfaces of RootRank register
   output reg                        rank_we,          // rank write enable
@@ -62,18 +71,71 @@ reg state_reg, state_next;
 reg [`RankBus] rx_v_cnt_reg, rx_v_cnt_next;
 reg [`RankBus] tx_v_idx_reg, tx_v_idx_next;
 
-// ------------------------------------------
-// Write operation of the rank registers
-// ------------------------------------------
+// ---------------------------------------------------
+// Extra pipeline stage of the bias calculation of V
+// ---------------------------------------------------
+reg [`PeDataBus] rx_rank_data;
+reg [`RankBus] rx_rank_addr;
+// register holding the offset of the bias memory
+reg [`RankBiasMemAddrBus] bias_offset;
+
+// ---------------------------------------------------
+// Receiving the calculated rank results (w/o bias)
+// ---------------------------------------------------
+// Bias memory offset
+always @ (posedge clk or posedge rst) begin
+  if (rst) begin
+    bias_offset               <= 0;
+  end else if (clear_bias_offset) begin
+    bias_offset               <= 0;
+  end else if (update_bias_offset) begin
+    bias_offset               <= bias_offset + rank_no;
+  end
+end
+// Bias memory access
 always @ (*) begin
   if (in_data_valid && in_data_route_info == `ROUTER_INFO_UV) begin
-    rank_we                   = 1'b1;
-    rank_waddr                = in_data_route_addr[`RankBus];
-    rank_wdata                = in_data_route_data;
+    rank_bias_mem_cen         = 1'b0;
+    rank_bias_mem_wen         = 1'b1;
+    rank_bias_mem_addr        = bias_offset + in_data_route_addr[`RankBus];
   end else begin
-    rank_we                   = 1'b0;
-    rank_waddr                = 0;
-    rank_wdata                = 0;
+    rank_bias_mem_cen         = 1'b1;
+    rank_bias_mem_wen         = 1'b1;
+    rank_bias_mem_addr        = 0;
+  end
+end
+always @ (posedge clk or posedge rst) begin
+  if (rst) begin
+    rank_bias_mem_oe          <= 1'b1;
+  end else begin
+    rank_bias_mem_oe          <= rank_bias_mem_cen;
+  end
+end
+// Register the receiving rank data (w/o bias) & the associated address
+always @ (posedge clk or posedge rst) begin
+  if (rst) begin
+    rx_rank_addr              <= 0;
+    rx_rank_data              <= 0;
+  end else if (in_data_valid && in_data_route_info == `ROUTER_INFO_UV) begin
+    rx_rank_addr              <= in_data_route_addr[`RankBus];
+    rx_rank_data              <= in_data_route_data;
+  end
+end
+// Adding the results of the bias data & receiving rank data
+// and write the results into the register bank
+always @ (posedge clk or posedge rst) begin
+  if (rst) begin
+    rank_we                   <= 1'b0;
+    rank_waddr                <= 0;
+    rank_wdata                <= 0;
+  end else if (rank_bias_mem_oe == 1'b0) begin
+    rank_we                   <= 1'b1;
+    rank_waddr                <= rx_rank_addr;
+    rank_wdata                <= rx_rank_data + rank_bias_mem_q;
+  end else begin
+    rank_we                   <= 1'b0;
+    rank_waddr                <= 0;
+    rank_wdata                <= 0;
   end
 end
 
@@ -141,14 +203,14 @@ always @ (*) begin
         // if the current layer needs V computation, go to transfer state
         // and receive the UV packets
         state_next            = STATE_TRAN;
-        rx_v_cnt_next         = 1;
+        rx_v_cnt_next         = 0;
         tx_v_idx_next         = 0;
       end
     end
 
     STATE_TRAN: begin
       // update the rx V counter
-      if (in_data_valid && in_data_route_info == `ROUTER_INFO_UV) begin
+      if (rank_we) begin
         rx_v_cnt_next         = rx_v_cnt_reg + 1;
       end
 
@@ -175,5 +237,17 @@ always @ (*) begin
     end
   endcase
 end
+
+// -------------------------------
+// Display log info
+// -------------------------------
+// synopsys translate_off
+always @ (posedge clk) begin
+  if (rank_re) begin
+    $display("@%t Root Rank sends the rank[%d] = %d", $time, rank_raddr,
+      $signed(rank_rdata));
+  end
+end
+// synopsys translate_on
 
 endmodule

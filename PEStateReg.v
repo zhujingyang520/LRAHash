@@ -29,12 +29,19 @@ module PEStateReg (
   output wire [`PeActNoBus]       out_act_no,   // output activation no.
   output wire [`PeAddrBus]        col_dim,      // column dimension
   output wire [`WMemAddrBus]      w_mem_offset, // weight memory address offset
+  output wire                     in_act_relu,  // input activation relu
+  output wire                     out_act_relu, // output activation relu
 
   // output uv calculation related parameters
   output wire                     uv_en,        // uv enable
   output wire [`RankBus]          rank_no,      // rank number
   output wire [`UMemAddrBus]      u_mem_offset, // u memory address offset
-  output wire [`VMemAddrBus]      v_mem_offset  // v memory address offset
+  output wire [`VMemAddrBus]      v_mem_offset, // v memory address offset
+
+  // output truncation scheme
+  output wire [`TruncWidth]       act_trunc,    // Act truncation scheme
+  output wire [`TruncWidth]       act_u_trunc,  // Act u truncation scheme
+  output wire [`TruncWidth]       act_v_trunc   // Act v truncation scheme
 );
 
 // Max layer no: 2 ^ layer no bus width
@@ -50,6 +57,13 @@ reg [`PeActNoBus] act_no_reg [MAX_LAYER_NO-1:0];
 reg [`PeAddrBus] col_dim_reg [MAX_LAYER_NO-2:0];
 // address offset for each layer (no. = max layer no. - 1)
 reg [`WMemAddrBus] w_mem_offset_reg [MAX_LAYER_NO-2:0];
+// relu enable for each layer
+reg [MAX_LAYER_NO:0] relu_en_reg;
+// truncation scheme for each layer
+reg [`TruncWidth] act_trunc_reg [MAX_LAYER_NO-2:0];
+reg [`TruncWidth] act_u_trunc_reg [MAX_LAYER_NO-3:0];
+reg [`TruncWidth] act_v_trunc_reg [MAX_LAYER_NO-3:0];
+
 // ----------------------
 // UV related parameters
 // ----------------------
@@ -78,6 +92,7 @@ always @ (posedge clk or posedge rst) begin
     for (i = 0; i < MAX_LAYER_NO-1; i = i + 1) begin
       w_mem_offset_reg[i] <= 0;
     end
+    relu_en_reg       <= 0;
     // uv matrix setting
     uv_en_reg         <= 0;
     for (i = 0; i < MAX_LAYER_NO-2; i = i + 1) begin
@@ -88,6 +103,15 @@ always @ (posedge clk or posedge rst) begin
     end
     for (i = 0; i < MAX_LAYER_NO-2; i = i + 1) begin
       v_mem_offset_reg[i] <= 0;
+    end
+    for (i = 0; i < MAX_LAYER_NO-1; i = i + 1) begin
+      act_trunc_reg[i]    <= 0;
+    end
+    for (i = 0; i < MAX_LAYER_NO-2; i = i + 1) begin
+      act_u_trunc_reg[i]  <= 0;
+    end
+    for (i = 0; i < MAX_LAYER_NO-2; i = i + 1) begin
+      act_v_trunc_reg[i]  <= 0;
     end
   end else if (write_en) begin
     case (write_addr)
@@ -378,6 +402,82 @@ always @ (posedge clk or posedge rst) begin
         // synopsys translate_on
       end
 
+      `PE_STATUS_ADDR_WIDTH'd70: begin  // [70]: relu_en
+        relu_en_reg         <= write_data[MAX_LAYER_NO:0];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: relu_en = %d", $time, PE_IDX,
+          write_data[MAX_LAYER_NO:0]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd72: begin  // [72]: act_trunc_reg[2:0]
+        act_trunc_reg[2]    <= write_data[14:10];
+        act_trunc_reg[1]    <= write_data[9:5];
+        act_trunc_reg[0]    <= write_data[4:0];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: act_trunc_reg[2:0] = %d",
+          $time, PE_IDX, write_data[14:0]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd74: begin  // [74]: act_trunc_reg[5:3]
+        act_trunc_reg[5]    <= write_data[14:10];
+        act_trunc_reg[4]    <= write_data[9:5];
+        act_trunc_reg[3]    <= write_data[4:0];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: act_trunc_reg[5:3] = %d",
+          $time, PE_IDX, write_data[14:0]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd76: begin  // [76]: act_trunc_reg[6]
+        act_trunc_reg[6]    <= write_data[4:0];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: act_trunc_reg[6] = %d",
+          $time, PE_IDX, write_data[5:0]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd78: begin  // [78]: act_u_trunc_reg[2:0]
+        act_u_trunc_reg[2]  <= write_data[14:10];
+        act_u_trunc_reg[1]  <= write_data[9:5];
+        act_u_trunc_reg[0]  <= write_data[4:0];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: act_u_trunc_reg[2:0] = %d",
+          $time, PE_IDX, write_data[14:0]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd80: begin  // [80]: act_u_trunc_reg[5:3]
+        act_u_trunc_reg[5]  <= write_data[14:10];
+        act_u_trunc_reg[4]  <= write_data[9:5];
+        act_u_trunc_reg[3]  <= write_data[4:0];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: act_u_trunc_reg[5:3] = %d",
+          $time, PE_IDX, write_data[14:0]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd82: begin  // [82]: act_v_trunc_reg[2:0]
+        act_v_trunc_reg[2]  <= write_data[14:10];
+        act_v_trunc_reg[1]  <= write_data[9:5];
+        act_v_trunc_reg[0]  <= write_data[4:0];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: act_v_trunc_reg[2:0] = %d",
+          $time, PE_IDX, write_data[14:0]);
+        // synopsys translate_on
+      end
+
+      `PE_STATUS_ADDR_WIDTH'd84: begin  // [84]: act_v_trunc_reg[5:3]
+        act_v_trunc_reg[5]  <= write_data[14:10];
+        act_v_trunc_reg[4]  <= write_data[9:5];
+        act_v_trunc_reg[3]  <= write_data[4:0];
+        // synopsys translate_off
+        $display("@%t CONFIG PE[%d]: act_v_trunc_reg[5:3] = %d",
+          $time, PE_IDX, write_data[14:0]);
+        // synopsys translate_on
+      end
+
       default: begin
         /* Keep the original value */
       end
@@ -393,10 +493,17 @@ assign in_act_no = act_no_reg[layer_idx];
 assign out_act_no = act_no_reg[layer_idx + 1];
 assign col_dim = col_dim_reg[layer_idx];
 assign w_mem_offset = w_mem_offset_reg[layer_idx];
+assign in_act_relu = relu_en_reg[layer_idx];
+assign out_act_relu = (layer_idx == layer_no_reg) ?
+  relu_en_reg[layer_no_reg] : relu_en_reg[layer_idx + 1];
 // UV related parameters
 assign uv_en = uv_en_reg[layer_idx];
 assign rank_no = rank_no_reg[layer_idx];
 assign u_mem_offset = u_mem_offset_reg[layer_idx];
 assign v_mem_offset = v_mem_offset_reg[layer_idx];
+// Truncation scheme for the current layer
+assign act_trunc = act_trunc_reg[layer_idx];
+assign act_u_trunc = act_u_trunc_reg[layer_idx];
+assign act_v_trunc = act_v_trunc_reg[layer_idx];
 
 endmodule

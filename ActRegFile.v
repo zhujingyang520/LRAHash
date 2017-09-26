@@ -16,24 +16,27 @@ module ActRegFile (
   input wire                    in_act_clear,       // input activation clear
   input wire                    in_act_read_en,     // read enable
   input wire  [`PeActNoBus]     in_act_read_addr,   // read address
-  output reg  [`PeDataBus]      in_act_read_data,   // read data
+  output reg  [`ActRegDataBus]  in_act_read_data,   // read data
   input wire                    in_act_write_en,    // write enable
   input wire  [`PeActNoBus]     in_act_write_addr,  // write address
-  input wire  [`PeDataBus]      in_act_write_data,  // write data
+  input wire  [`ActRegDataBus]  in_act_write_data,  // write data
   output reg  [`PE_ACT_NO-1:0]  in_act_zeros,       // zero flags
+  output reg  [`PE_ACT_NO-1:0]  in_act_g_zeros,     // > 0 flags
   // output activations
   input wire                    out_act_clear,      // output activation clear
   input wire                    out_act_read_en,    // read enable
   input wire  [`PeActNoBus]     out_act_read_addr,  // read address
-  output reg  [`PeDataBus]      out_act_read_data,  // read data
+  output reg  [`ActRegDataBus]  out_act_read_data,  // read data
   input wire                    out_act_write_en,   // write enable
   input wire  [`PeActNoBus]     out_act_write_addr, // write address
-  input wire  [`PeDataBus]      out_act_write_data, // write data
+  input wire  [`ActRegDataBus]  out_act_write_data, // write data
   output reg  [`PE_ACT_NO-1:0]  out_act_g_zeros,    // > 0 flags
+  // relu of the output activation read data primary port
+  output wire [`ActRegDataBus]  out_act_read_data_relu,
   // output activations secondary read port
   input wire                    out_act_read_en_s,  // read enable (secondary)
   input wire  [`PeActNoBus]     out_act_read_addr_s,// read address (secondary)
-  output reg  [`PeDataBus]      out_act_read_data_s // read data (secondary)
+  output reg  [`ActRegDataBus]  out_act_read_data_s // read data (secondary)
 );
 
 genvar g;
@@ -44,16 +47,16 @@ genvar g;
 reg clear [1:0];
 reg read_en [1:0];
 reg [`PeActNoBus] read_addr [1:0];
-wire [`PeDataBus] read_data [1:0];
+wire [`ActRegDataBus] read_data [1:0];
 reg write_en [1:0];
 reg [`PeActNoBus] write_addr [1:0];
-reg [`PeDataBus] write_data [1:0];
+reg [`ActRegDataBus] write_data [1:0];
 wire [`PE_ACT_NO-1:0] zeros [1:0];
 wire [`PE_ACT_NO-1:0] g_zeros [1:0];
 // secondary read interconnections
 reg read_en_s [1:0];
 reg [`PeActNoBus] read_addr_s [1:0];
-wire [`PeDataBus] read_data_s [1:0];
+wire [`ActRegDataBus] read_data_s [1:0];
 
 // ----------------------------------
 // Instantiation of 2 register files
@@ -62,7 +65,7 @@ generate
 for (g = 0; g < 2; g = g + 1) begin: gen_reg_file
 // Use 2RP register file
 RegFile2RP #(
-  .BIT_WIDTH          (`PE_DATA_WIDTH),       // bit width of the entry
+  .BIT_WIDTH          (`ACT_REG_DATA_WIDTH),  // bit width of the entry
   .REG_DEPTH          (`PE_ACT_NO)            // register file depth
 ) reg_file (
   .clk                (clk),                  // system clock
@@ -113,6 +116,7 @@ always @ (*) begin
     write_data[1] = out_act_write_data;
     // zero flags
     in_act_zeros = zeros[0];
+    in_act_g_zeros = g_zeros[0];
     out_act_g_zeros = g_zeros[1];
   end else begin
     // ACT_DIR_1: act[0]: out; act[1]: in
@@ -135,10 +139,21 @@ always @ (*) begin
     write_data[0] = out_act_write_data;
     // zero flags
     in_act_zeros = zeros[1];
+    in_act_g_zeros = g_zeros[1];
     out_act_g_zeros = g_zeros[0];
   end
 end
+// ReLU of the output activation read data primary port
+ReLU #(
+  .BIT_WIDTH          (`ACT_REG_DATA_WIDTH)   // datapath bit width
+) relu_out_act_read_data_p (
+  .in_data            (out_act_read_data),    // input data
+  .out_data           (out_act_read_data_relu)
+);
+
+// -----------------------------------------
 // Multiplexer for the secondary read port
+// -----------------------------------------
 always @ (*) begin
   if (dir == `ACT_DIR_0) begin
     // ACT_DIR_0: act[0]: in; act[1]: out

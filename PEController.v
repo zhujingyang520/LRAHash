@@ -26,8 +26,12 @@ module PEController (
   input wire                    uv_en,              // UV enable for cur layer
   input wire  [`RankBus]        rank_no,            // rank number
   input wire  [`WMemAddrBus]    w_mem_offset,       // W memory offset
+  input wire                    in_act_relu,        // input act relu
   input wire  [`UMemAddrBus]    u_mem_offset,       // U memory offset
   input wire  [`VMemAddrBus]    v_mem_offset,       // V memory offset
+  input wire  [`TruncWidth]     act_trunc,          // act truncation scheme
+  input wire  [`TruncWidth]     act_u_trunc,        // act u truncation scheme
+  input wire  [`TruncWidth]     act_v_trunc,        // act v truncation scheme
 
   // interfaces of activation register file
   output wire                   act_regfile_dir,    // act regfile direction
@@ -44,15 +48,16 @@ module PEController (
                                 part_sum_send_addr, // partial sum send address
 
   // activation register file
-  input wire  [`PeDataBus]      in_act_read_data,   // in act read data
+  input wire  [`ActRegDataBus]  in_act_read_data,   // in act read data
   output wire                   in_act_read_en,     // in act read enable
   output wire [`PeActNoBus]     in_act_read_addr,   // in act read address
   input wire  [`PE_ACT_NO-1:0]  in_act_zeros,       // in act zero flags
-  input wire  [`PE_ACT_NO-1:0]  out_act_g_zeros,    // out act > 0 zero flags
+  input wire  [`PE_ACT_NO-1:0]  in_act_g_zeros,     // in act > 0 flags
+  input wire  [`PE_ACT_NO-1:0]  out_act_g_zeros,    // out act > 0 flags
   // secondary activation read port
   output wire                   out_act_read_en_s,  // read enable
   output wire [`PeActNoBus]     out_act_read_addr_s,// read address
-  input wire  [`PeDataBus]      out_act_read_data_s,// read data
+  input wire  [`ActRegDataBus]  out_act_read_data_s,// read data
 
   // interfaces of PE activation queue
   input wire                    queue_empty,        // activation queue empty
@@ -66,7 +71,8 @@ module PEController (
   output wire [`PeAddrBus]      in_act_idx,         // input activation idx
   output wire [`PeActNoBus]     out_act_addr,       // output activation address
   output wire [`PeDataBus]      in_act_value,       // input activation value
-  output wire [`WMemAddrBus]    mem_offset          // memory offset
+  output wire [`WMemAddrBus]    mem_offset,         // memory offset
+  output wire [`TruncWidth]     trunc_amount        // truncation amount
 );
 
 // ------------------------------
@@ -102,11 +108,16 @@ PEComputationFSM pe_computation_fsm (
   .rank_no                      (rank_no),          // rank number
   .layer_idx                    (layer_idx),        // current layer index
   .w_mem_offset                 (w_mem_offset),     // W memory offset
+  .in_act_relu                  (in_act_relu),      // input activation relu
   .u_mem_offset                 (u_mem_offset),     // U memory offset
   .v_mem_offset                 (v_mem_offset),     // V memory offset
+  .act_trunc                    (act_trunc),        // act truncation scheme
+  .act_u_trunc                  (act_u_trunc),      // act u truncation scheme
+  .act_v_trunc                  (act_v_trunc),      // act v truncation scheme
 
   // Activation register file
   .in_act_zeros                 (in_act_zeros),     // input activation zero
+  .in_act_g_zeros               (in_act_g_zeros),   // input act > 0
   .act_regfile_dir              (act_regfile_dir),
   .in_act_read_en               (in_act_read_en_comp),
   .in_act_read_addr             (in_act_read_addr_comp),
@@ -125,7 +136,8 @@ PEComputationFSM pe_computation_fsm (
   .in_act_idx                   (in_act_idx),       // input activation idx
   .out_act_addr                 (out_act_addr),     // output activation address
   .in_act_value                 (in_act_value),     // input activation value
-  .mem_offset                   (mem_offset)        // memory offset
+  .mem_offset                   (mem_offset),       // memory offset
+  .trunc_amount                 (trunc_amount)      // truncation amount
 );
 
 // Broadcast FSM
@@ -139,12 +151,14 @@ PEBroadcastFSM pe_broadcast_fsm (
                                                     // start broadcast
 
   .in_act_no                    (in_act_no),        // input activation no.
+  .in_act_relu                  (in_act_relu),      // input activation relu
 
   // activation register interface
   .in_act_read_en               (in_act_read_en_broadcast),
   .in_act_read_addr             (in_act_read_addr_broadcast),
   .in_act_read_data             (in_act_read_data), // read data
   .in_act_zeros                 (in_act_zeros),     // input activation zero
+  .in_act_g_zeros               (in_act_g_zeros),   // input activation > 0
 
   // network interface
   .act_send_en                  (act_send_en),      // activation send enable
